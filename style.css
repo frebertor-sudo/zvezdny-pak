@@ -157,6 +157,26 @@ main[hidden]{display:none}
   -webkit-mask-image:radial-gradient(circle at var(--px,50%) var(--py,50%),#000 0,#000 9%,transparent 26%);mask-image:radial-gradient(circle at var(--px,50%) var(--py,50%),#000 0,#000 9%,transparent 26%)}
 .booster.pressed .bdent{opacity:1}
 .pullmask{position:absolute;inset:0;z-index:1;pointer-events:none}
+/* ---------- телефоны: Chrome на Android мерцает, когда размытие и режимы наложения живут внутри 3D-слоёв ----------
+   Оставляем тот же вид, но без тяжёлых сочетаний: пакет плоский (без слоёв толщины), без blend и backdrop внутри поворотов */
+.lowfx .booster{transform-style:flat}
+.lowfx .bslice:not(.back){display:none}
+.lowfx .bslice.back{transform:translate(3px,4px)!important;opacity:.9}
+.lowfx .bdropsh{transform:translateY(18px);filter:none;background:radial-gradient(closest-side,#000c,#0000);opacity:.8}
+.lowfx .bglow{transform:none;filter:none;background:radial-gradient(closest-side,#9b7bff66,#9b7bff00)}
+.lowfx .bsheen,.lowfx .bcurlhi{mix-blend-mode:normal;opacity:.35}
+.lowfx .bdent,.lowfx .bcurl{mix-blend-mode:normal}
+.lowfx .bcurl{opacity:.6}
+.lowfx .btornw{filter:none;perspective:none}
+.lowfx .btorn{filter:drop-shadow(0 3px 2px #0008)}
+.lowfx .blogo b{filter:drop-shadow(0 3px 0 #2a1454)}
+.lowfx .edge:nth-child(odd){filter:none}
+.lowfx .flip .back svg,.lowfx .cback svg{filter:none}
+.lowfx .flip .back::after,.lowfx .card .gloss{mix-blend-mode:normal;opacity:.25}
+.lowfx .card.foil::after{mix-blend-mode:normal;opacity:.3}
+.lowfx .card .num span,.lowfx .card .rarity{backdrop-filter:none;-webkit-backdrop-filter:none;background:#070d0ad9}
+.lowfx .card .art .fill{filter:saturate(1.3) brightness(.6)}
+.lowfx img{-webkit-backface-visibility:hidden;backface-visibility:hidden}
 /* браузер не тащит картинки «призраком» — карточки и пакет двигаем только мы */
 img,svg{-webkit-user-drag:none;user-drag:none;-webkit-user-select:none;user-select:none}
 #stage,#stage *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
