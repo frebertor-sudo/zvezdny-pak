@@ -78,6 +78,7 @@ function setTab(t){
   document.querySelectorAll('nav a').forEach(a => a.toggleAttribute('aria-current', a.dataset.tab === t));
   ['pack','album','stream','admin'].forEach(k => { $('tab-' + k).hidden = k !== t; });
   if (t === 'admin') renderAdminGate();
+  if (t === 'stream' && typeof mountPlayer === 'function') mountPlayer();
   window.scrollTo(0, 0);
 }
 document.querySelector('nav').addEventListener('click', e => {
@@ -990,7 +991,7 @@ $('stage').addEventListener('pointerleave', () => { const i = $('stage').querySe
 
 $('open').addEventListener('click', onOpenBtn);
 const sndBtn = () => { $('snd').textContent = 'Звук: ' + (sound ? 'вкл' : 'выкл'); $('snd').setAttribute('aria-pressed', sound); };
-$('snd').addEventListener('click', () => { sound = !sound; try { localStorage.setItem('zvezdny-sound', sound ? '1' : '0'); } catch(e){} sndBtn(); if (sound) beep(660, .12, .05); });
+$('snd').addEventListener('click', () => { sound = !sound; if (!sound && window._ufoHumStop) window._ufoHumStop(); try { localStorage.setItem('zvezdny-sound', sound ? '1' : '0'); } catch(e){} sndBtn(); if (sound) beep(660, .12, .05); });
 sndBtn();
 $('earn').addEventListener('click', () => { S.bal += 5000; save(); renderTop(); toast('+5 000 баллов за просмотр'); });
 $('reset').addEventListener('click', () => { if (busy || ['tearing','auto','waiting','pull'].includes(packState)) return; S = fresh(); recent = []; renderRecent(); save(); renderAll(); spawnPack(); toast('Демо сброшено'); });
@@ -1045,17 +1046,24 @@ if (!LIVE){
 
 /* ---------- НЛО над лесом ---------- */
 (() => {
-  const el = $('ufo'); let st = null;
+  const el = $('ufo'); let st = null, humNode = null;
+  const humStop = () => { // гул затихает, как только НЛО поймали или оно улетело
+    const h = humNode; humNode = null; if (!h || !AC) return;
+    try { const now = AC.currentTime; h.g.gain.cancelScheduledValues(now); h.g.gain.setValueAtTime(h.g.gain.value, now); h.g.gain.linearRampToValueAtTime(0, now + .25); h.o.stop(now + .3); h.l.stop(now + .3); } catch(e){}
+  };
   const hum = (dur) => { // тихий «инопланетный» гул
-    if (!sound || !AC) return;
+    humStop();
+    if (!sound || !audio()) return;
     try {
       const o = AC.createOscillator(), l = AC.createOscillator(), lg = AC.createGain(), g = AC.createGain(), now = AC.currentTime;
       o.type = 'sine'; o.frequency.value = 340; l.frequency.value = 5; lg.gain.value = 40;
       l.connect(lg).connect(o.frequency);
       g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(.018, now + .6); g.gain.setValueAtTime(.018, now + dur - .8); g.gain.linearRampToValueAtTime(0, now + dur);
       o.connect(g).connect(AC.destination); o.start(now); l.start(now); o.stop(now + dur); l.stop(now + dur);
+      humNode = {o, l, g};
     } catch(e){}
   };
+  window._ufoHumStop = humStop;
   function fly(){
     if (st || document.hidden){ schedule(); return; }
     const dir = Math.random() < .5 ? 1 : -1, W = innerWidth, w = el.offsetWidth || 90;
@@ -1083,19 +1091,22 @@ if (!LIVE){
     };
     requestAnimationFrame(step);
   }
-  function end(){ st = null; el.hidden = true; el.classList.remove('beaming'); schedule(); }
+  function end(){ humStop(); st = null; el.hidden = true; el.classList.remove('beaming'); schedule(); }
   let tm;
   // редкое событие: проверка раз в 40–90 с, и только в 25% случаев НЛО действительно прилетает
   function schedule(){ clearTimeout(tm); tm = setTimeout(() => Math.random() < .25 ? fly() : schedule(), 40000 + Math.random() * 50000); }
   el.addEventListener('click', e => {
     if (!st || st.caught) return;
-    st.caught = true; el.classList.add('beaming');
-    S.bal += 1000; save(); renderTop();
-    const r = el.getBoundingClientRect(), b = document.createElement('div');
-    b.className = 'bonus'; b.textContent = '+1 000 баллов'; b.style.left = (r.left + r.width / 2) + 'px'; b.style.top = (r.bottom + 6) + 'px';
-    document.body.appendChild(b); setTimeout(() => b.remove(), 1500);
-    beep(880, .12, .05); setTimeout(() => beep(1320, .18, .05), 90); setTimeout(() => beep(1760, .3, .04), 180);
-    toast('Тебя похитило НЛО! +1 000 баллов');
+    st.caught = true; el.classList.add('beaming'); humStop();
+    const r = el.getBoundingClientRect();
+    const pop = txt => { const b = document.createElement('div'); b.className = 'bonus'; b.textContent = txt; b.style.left = (r.left + r.width / 2) + 'px'; b.style.top = (r.bottom + 6) + 'px'; document.body.appendChild(b); setTimeout(() => b.remove(), 1500); };
+    const ding = () => { beep(880, .12, .05); setTimeout(() => beep(1320, .18, .05), 90); setTimeout(() => beep(1760, .3, .04), 180); };
+    if (!LIVE){ S.bal += 1000; save(); renderTop(); pop('+1 000 баллов'); ding(); toast('Тебя похитило НЛО! +1 000 баллов'); }
+    else if (!USER || USER.demo) toast('Войди на сайт — НЛО дарит лесную пыльцу');
+    else api('ufo_catch').then(d => {
+      if (d.ok){ applyMe(d); pop(`+${d.dust} пыльцы`); ding(); toast(`Тебя похитило НЛО! +${d.dust} пыльцы`); }
+      else toast(`НЛО уже дарило подарок. Следующий — через ${d.wait} мин`);
+    }).catch(e => toast(e.message));
     setTimeout(() => el.classList.remove('beaming'), 700);
   });
   if (!RM) schedule();
@@ -1481,7 +1492,7 @@ async function rest(path){
 async function liveLoadSet(){
   const [cards, sets] = await Promise.all([
     rest('cards?select=id,sort,name,flavor,rarity,img,tall&active=eq.true&order=sort.asc'),
-    rest('settings?select=odds,foil,pity,cost,reward_id,bridge_seen_at,channel,claim_until,follow_only&id=eq.1')
+    rest('settings?select=odds,foil,pity,cost,reward_id,bridge_seen_at,channel,claim_until,follow_only,watch_minutes,watch_daily&id=eq.1')
   ]);
   const s = sets[0] || {};
   CARDS = cards.map(c => ({id: c.id, name: c.name, flavor: c.flavor, r: c.rarity, img: c.img, tall: c.tall}));
@@ -1538,7 +1549,11 @@ function overlayUrl(withKey){
 }
 function renderLiveAdmin(){
   const box = $('admLive'); if (!box) return;
-  $('admFollow').hidden = !LIVE;
+  $('admFollow').hidden = !LIVE; $('admKeep').hidden = !LIVE;
+  if (LIVE && LIVESET){
+    if (document.activeElement !== $('kpMin')) $('kpMin').value = LIVESET.watch_minutes ?? 30;
+    if (document.activeElement !== $('kpDaily')) $('kpDaily').value = LIVESET.watch_daily ?? 4;
+  }
   if (LIVE && document.activeElement !== $('flOn')) $('flOn').value = LIVESET && LIVESET.follow_only ? '1' : '0';
   box.hidden = !LIVE; if (!LIVE) return;
   const bound = !!(LIVESET && LIVESET.reward_id);
@@ -1570,6 +1585,76 @@ function renderLiveAdmin(){
   $('admReward').disabled = !hasScope;
   $('admReward').textContent = bound ? 'Обновить награду на Twitch' : 'Создать награду «Звёздный пак»';
 }
+/* ---------- удержание: стрим на сайте, пакетик за просмотр, звездопад ---------- */
+let WATCH = null;
+function renderWatch(){
+  const w = WATCH, chip = $('watchChip'), on = !!(w && w.live);
+  $('lwState').textContent = on ? 'В ЭФИРЕ' : 'офлайн'; $('lwState').classList.toggle('on', on);
+  if (!USER || USER.demo){ chip.hidden = true; $('lwTxt').innerHTML = 'Войди на сайт: пока идёт стрим, за просмотр дают бесплатные пакетики.'; $('lwBar').style.width = '0'; return; }
+  if (!w) return;
+  const m = Math.floor(w.sec / 60), need = Math.round(w.need / 60), done = w.today >= w.daily;
+  chip.hidden = !on;
+  $('watchTxt').textContent = done ? 'лимит' : `${m}/${need}`;
+  $('lwBar').style.width = (done ? 100 : Math.min(100, w.sec / w.need * 100)) + '%';
+  $('lwTxt').innerHTML = !on ? `Стрим сейчас не идёт. Как только начнётся — держи сайт открытым: за каждые <b>${need} мин</b> просмотра бесплатный пакетик (до ${w.daily} в день).`
+    : done ? `На сегодня все пакетики за просмотр получены (<b>${w.today} из ${w.daily}</b>). Возвращайся завтра!`
+    : `Смотришь стрим: <b>${m} из ${need} мин</b> до бесплатного пакетика. Сегодня получено ${w.today} из ${w.daily}.`;
+}
+async function watchPing(){
+  if (!LIVE || !USER || USER.demo){ renderWatch(); return; }
+  try {
+    const d = await api('watch_ping'); WATCH = d;
+    if (d.gained){ applyMe(d); toast('+1 пакетик за просмотр стрима!'); beep(784, .15, .05); setTimeout(() => beep(1046, .25, .05), 120); }
+  } catch(e){}
+  renderWatch();
+}
+function mountPlayer(){ // плеер и чат грузим только когда открыли вкладку «Стрим»
+  if (!LIVE || $('playerBox').dataset.on) return;
+  const ch = encodeURIComponent(TWITCH.channel), host = encodeURIComponent(location.hostname);
+  $('playerBox').dataset.on = 1;
+  $('playerBox').innerHTML = `<iframe src="https://player.twitch.tv/?channel=${ch}&parent=${host}&autoplay=true" allowfullscreen allow="autoplay; fullscreen" title="Стрим ${ch}"></iframe>`;
+  $('chatBox').innerHTML = `<iframe src="https://www.twitch.tv/embed/${ch}/chat?parent=${host}&darkpopout" title="Чат ${ch}"></iframe>`;
+}
+$('watchChip').addEventListener('click', () => setTab('stream'));
+
+const DROP = {cur: null, caught: new Set(), raf: 0, tick: 0};
+try { (JSON.parse(localStorage.getItem('zvezdny-drops') || '[]')).forEach(id => DROP.caught.add(id)); } catch(_){}
+function dropRemember(id){ DROP.caught.add(id); try { localStorage.setItem('zvezdny-drops', JSON.stringify([...DROP.caught].slice(-30))); } catch(_){} }
+async function pollDrops(){
+  if (!LIVE || document.hidden) return;
+  try {
+    const rows = await rest(`drops?select=id,until,packs&until=gt.${encodeURIComponent(new Date().toISOString())}&order=id.desc&limit=1`);
+    const d = rows[0];
+    if (d && !DROP.caught.has(d.id) && (!DROP.cur || DROP.cur.id !== d.id)) showDrop(d);
+  } catch(_){}
+}
+function hideDrop(){ DROP.cur = null; $('dropStar').hidden = true; $('dropBanner').hidden = true; cancelAnimationFrame(DROP.raf); clearInterval(DROP.tick); }
+function showDrop(d){
+  hideDrop(); DROP.cur = d;
+  const el = $('dropStar'), until = Date.parse(d.until), t0 = performance.now(), sx = .15 + Math.random() * .7;
+  el.hidden = false; $('dropBanner').hidden = false;
+  const left = () => { const s = Math.max(0, Math.round((until - Date.now()) / 1000)); $('dropBanner').textContent = `★ Звездопад! Лови звезду · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; if (s <= 0) hideDrop(); };
+  left(); DROP.tick = setInterval(left, 1000);
+  beep(988, .15, .05); setTimeout(() => beep(1318, .3, .05), 140);
+  const fly = now => { // звезда медленно падает зигзагом и снова появляется сверху
+    if (!DROP.cur) return;
+    const t = (now - t0) / 1000, W = innerWidth, H = innerHeight, k = (t % 11) / 11;
+    const x = (sx + Math.sin(t * .9) * .18) * (W - 84), y = -80 + k * (H + 120);
+    el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+    DROP.raf = requestAnimationFrame(fly);
+  };
+  DROP.raf = requestAnimationFrame(fly);
+}
+$('dropStar').addEventListener('click', async () => {
+  const d = DROP.cur; if (!d) return;
+  if (!USER || USER.demo) return openLogin('Войди, чтобы поймать звезду и получить пакетик');
+  try {
+    const r = await api('drop_claim', {id: d.id}); dropRemember(d.id); hideDrop(); applyMe(r);
+    toast(`Поймал звезду! +${r.packs} ${r.packs > 1 ? 'пакетика' : 'пакетик'}`); burst('#d9ef6b', 16);
+    beep(880, .12, .05); setTimeout(() => beep(1320, .18, .05), 90); setTimeout(() => beep(1760, .3, .04), 180);
+  } catch(e){ toast(e.message); dropRemember(d.id); hideDrop(); }
+});
+
 async function liveBoot(){
   // интерфейс под настоящие пакетики
   const balChip = $('bal').parentElement;
@@ -1591,6 +1676,9 @@ async function liveBoot(){
   setInterval(async () => { if (!$('tab-admin').hidden && LIVE){ try { await liveLoadSet(); renderLiveAdmin(); } catch(_){} } }, 30000); // статус моста
   await pollFeed(true);
   setInterval(() => pollFeed(false), 4000);
+  $('liveGrid').hidden = false; $('demoScreen').hidden = true;
+  setTimeout(watchPing, 2500); setInterval(watchPing, 60000); // пакетик за просмотр
+  pollDrops(); setInterval(pollDrops, 5000); document.addEventListener('visibilitychange', () => { if (!document.hidden) pollDrops(); });
   setInterval(() => { if (USER && !document.hidden && packState === 'sealed') liveMe(); }, 30000); // пакетики, купленные на стриме
 }
 
@@ -1599,6 +1687,20 @@ $('admReward')?.addEventListener('click', async e => {
   try { const d = await api('reward_setup'); await liveLoadSet(); toast(d.status === 'already_exists' ? 'Награда обновлена' : 'Награда создана, подписка оформлена'); }
   catch(err){ toast(err.message); }
   renderLiveAdmin();
+});
+$('kpSave').addEventListener('click', async () => {
+  try { await api('watch_save', {watch_minutes: +$('kpMin').value, watch_daily: +$('kpDaily').value}); await liveLoadSet(); renderLiveAdmin(); toast('Сохранено'); }
+  catch(e){ toast(e.message); }
+});
+$('dpGo').addEventListener('click', async () => {
+  const b = $('dpGo'); b.disabled = true;
+  try {
+    const d = await api('drop_start', {seconds: +$('dpSec').value, packs: +$('dpPacks').value});
+    const t = new Date(d.until).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+    $('dpRes').textContent = `Звездопад идёт до ${t}. Скажи на стриме: «Бегом на сайт, ловите звезду!»`;
+    toast('Звездопад запущен!'); pollDrops();
+  } catch(e){ toast(e.message); }
+  setTimeout(() => b.disabled = false, 3000);
 });
 $('flSave').addEventListener('click', async () => {
   try {

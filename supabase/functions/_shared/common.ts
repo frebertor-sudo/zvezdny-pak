@@ -193,3 +193,18 @@ export async function completeLogin(loginId: string, uid: string, login: string,
   await sb.from("sessions").insert({ token_hash: await sha256(token), twitch_id: uid, login });
   return token;
 }
+
+// Идёт ли сейчас стрим на канале: decapi.me/twitch/uptime (без токена). Кешируем на минуту.
+let _live: { ch: string; v: boolean; at: number } | null = null;
+export async function isLive(channel: string): Promise<boolean> {
+  if (!channel) return false;
+  if (_live && _live.ch === channel && Date.now() - _live.at < 60_000) return _live.v;
+  let v = false;
+  try {
+    const r = await fetch(`https://decapi.me/twitch/uptime/${encodeURIComponent(channel)}`, { signal: AbortSignal.timeout(5000) });
+    const t = (await r.text()).trim();
+    v = r.ok && !/offline|not found|error/i.test(t) && /\d+\s*(second|minute|hour|day)/i.test(t);
+  } catch (e) { console.error("uptime", e); v = _live?.v ?? false; }
+  _live = { ch: channel, v, at: Date.now() };
+  return v;
+}

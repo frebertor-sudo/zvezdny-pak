@@ -1,7 +1,7 @@
 // Единая точка API сайта. Запросы подтверждаются сессией сайта (x-session), токеном Twitch (x-twitch-token) или ключом стримера (x-admin-key).
 import {
   adminKeyOk, appToken, channelName, CLIENT_ID, corsHeaders, db, EVENTSUB_SECRET, HttpError, json, sha256, SUPABASE_URL,
-  completeLogin, decapiLast, isFollower, randomToken, type SiteUser, siteCfg, waitChatCode, whoami,
+  completeLogin, decapiLast, isFollower, isLive, randomToken, type SiteUser, siteCfg, waitChatCode, whoami,
 } from "../_shared/common.ts";
 type TwitchUser = SiteUser;
 
@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
       if (!ADMIN) throw new HttpError(401, "no_session");
       return json(req, { profile: null, owned: [], is_streamer: true, scopes: [] });
     }
-    const isAdminOnly = !["me", "open", "craft"].includes(String(body.action));
+    const isAdminOnly = !["me", "open", "craft", "watch_ping", "drop_claim", "ufo_catch"].includes(String(body.action));
     if (!isAdminOnly) requireUser(who);
     else requireStreamer(who, ADMIN);
     const u = who as TwitchUser;
@@ -221,6 +221,61 @@ Deno.serve(async (req) => {
         const { data, error } = await sb.rpc("craft_card", { p_uid: u.id, p_card: String(body.card_id), p_foil: !!body.foil });
         rpcError(error);
         return json(req, { result: data, ...(await profileWithCollection(u.id)) });
+      }
+
+      // ---------- удержание: просмотр, звездопад, НЛО ----------
+      case "watch_ping": { // сайт открыт и стрим идёт — копим минуты к бесплатному пакетику
+        const [live, { data: s }, { data: p }] = await Promise.all([
+          isLive(CHANNEL),
+          sb.from("settings").select("watch_minutes,watch_daily").eq("id", 1).single(),
+          sb.from("profiles").select("watch_sec,watch_last,watch_day,watch_today").eq("twitch_id", u.id).single(),
+        ]);
+        const need = Math.max(5, s?.watch_minutes ?? 30) * 60, daily = Math.max(0, s?.watch_daily ?? 4);
+        const now = Date.now(), today = new Date(now + 3 * 3600_000).toISOString().slice(0, 10); // сутки по Москве
+        let sec = p?.watch_sec ?? 0, todayN = p?.watch_day === today ? (p?.watch_today ?? 0) : 0, gained = 0;
+        const gap = p?.watch_last ? (now - Date.parse(p.watch_last)) / 1000 : 1e9;
+        if (gap >= 50) { // чаще раза в ~минуту не считаем (вторая вкладка ничего не даёт)
+          if (live && todayN < daily && gap <= 150) sec += Math.round(Math.min(gap, 75));
+          if (sec >= need && todayN < daily) {
+            sec -= need; todayN++; gained = 1;
+            await sb.rpc("add_packs", { p_uid: u.id, p_login: u.login, p_name: u.name, p_n: 1 });
+          }
+          await sb.from("profiles").update({ watch_sec: sec, watch_last: new Date(now).toISOString(), watch_day: today, watch_today: todayN }).eq("twitch_id", u.id);
+        }
+        const out: Record<string, unknown> = { live, sec, need, today: todayN, daily, gained };
+        if (gained) Object.assign(out, await profileWithCollection(u.id));
+        return json(req, out);
+      }
+      case "drop_claim": { // поймал звезду из звездопада
+        const { data: d } = await sb.from("drops").select("id,packs,until").eq("id", Number(body.id) || 0).maybeSingle();
+        if (!d || Date.parse(d.until) < Date.now()) throw new HttpError(410, "Звездопад уже закончился");
+        const { error } = await sb.from("drop_claims").insert({ drop_id: d.id, twitch_id: u.id });
+        if (error) throw new HttpError(409, "Эту звезду ты уже поймал");
+        await sb.rpc("add_packs", { p_uid: u.id, p_login: u.login, p_name: u.name, p_n: d.packs });
+        return json(req, { ok: true, packs: d.packs, ...(await profileWithCollection(u.id)) });
+      }
+      case "ufo_catch": { // НЛО: немного пыльцы, не чаще раза в 20 минут
+        const { data: p } = await sb.from("profiles").select("ufo_last,dust").eq("twitch_id", u.id).single();
+        const wait = p?.ufo_last ? 20 * 60 - (Date.now() - Date.parse(p.ufo_last)) / 1000 : 0;
+        if (wait > 0) return json(req, { ok: false, wait: Math.ceil(wait / 60) });
+        await sb.from("profiles").update({ ufo_last: new Date().toISOString(), dust: (p?.dust ?? 0) + 25 }).eq("twitch_id", u.id);
+        return json(req, { ok: true, dust: 25, ...(await profileWithCollection(u.id)) });
+      }
+      case "watch_save": { // стример: сколько минут за пакетик и сколько пакетиков в сутки
+        requireStreamer(u, ADMIN);
+        await sb.from("settings").update({
+          watch_minutes: Math.max(5, Math.min(240, Math.round(Number(body.watch_minutes) || 30))),
+          watch_daily: Math.max(0, Math.min(50, Math.round(Number(body.watch_daily) || 0))),
+        }).eq("id", 1);
+        return json(req, { ok: true });
+      }
+      case "drop_start": { // стример: запустить звездопад
+        requireStreamer(u, ADMIN);
+        const sec = Math.max(30, Math.min(600, Math.round(Number(body.seconds) || 90)));
+        const packs = Math.max(1, Math.min(5, Math.round(Number(body.packs) || 1)));
+        const { data: d, error } = await sb.from("drops").insert({ until: new Date(Date.now() + sec * 1000).toISOString(), packs }).select("id,until").single();
+        if (error) throw new HttpError(500, "Не удалось запустить звездопад");
+        return json(req, { ok: true, id: d.id, until: d.until });
       }
 
       // ---------- стример ----------
