@@ -53,6 +53,7 @@ create table public.owned (
   first_at  timestamptz not null default now(),
   primary key (twitch_id, card_id, foil)
 );
+create index owned_card_idx on public.owned (card_id);
 
 -- ---------- лента выпадений (публичная) ----------
 create table public.pulls (
@@ -66,7 +67,6 @@ create table public.pulls (
   dupe       boolean not null,
   created_at timestamptz not null default now()
 );
-create index pulls_created_idx on public.pulls (id desc);
 
 -- ---------- принятые награды (защита от повторов EventSub) ----------
 create table public.redemptions (
