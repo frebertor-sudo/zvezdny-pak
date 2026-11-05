@@ -411,7 +411,10 @@ input[type=range]{accent-color:var(--vio);padding:0;border:0;background:none;box
 .adm-row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:8px}
 @media(max-width:480px){.adm-row3{grid-template-columns:minmax(0,1fr)}}
 .adm-row3 input{padding:8px 10px}
-.adm-list{margin-top:16px}
+.adm-list,.adm-live{margin-top:16px}
+.adm-live[hidden]{display:none}
+#obsLink code{font-size:.8rem;color:var(--tea);word-break:break-all}
+#obsLink[hidden]{display:none}
 .adm-list-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .adm-list-head h2{margin:0}
 .adm-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}

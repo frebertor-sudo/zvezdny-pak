@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Звёздный пак — оверлей</title>
+<style>
+/* Прозрачный оверлей для OBS: «Источник браузера», 1920×1080. Показывает выпадения карточек на стриме. */
+:root{--tx:#e8f3ea;--soft:#c3d8ca}
+html,body{margin:0;background:transparent;overflow:hidden;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--tx)}
+.r-common{--rc:#9CA3AF}.r-rare{--rc:#3B82F6}.r-epic{--rc:#A855F7}.r-legendary{--rc:#F59E0B}
+.stage{position:fixed;left:50%;bottom:7vh;translate:-50% 0;display:flex;flex-direction:column;align-items:center;gap:14px}
+.alert{display:flex;align-items:center;gap:22px;padding:14px 34px 14px 14px;border-radius:999px;background:#0f1a14ee;
+  border:2px solid var(--rc);box-shadow:0 0 50px -6px var(--rc),0 20px 50px #000a;transform:translateY(160%) scale(.9);opacity:0;
+  transition:transform .6s cubic-bezier(.3,1.4,.5,1),opacity .4s}
+.alert.on{transform:none;opacity:1}
+.pic{position:relative;width:118px;height:165px;border-radius:14px;overflow:hidden;flex:none;box-shadow:0 0 0 3px #0f1a14,0 0 0 6px var(--rc),0 0 40px -4px var(--rc)}
+.pic img{width:100%;height:100%;object-fit:cover;object-position:50% 25%;display:block}
+.alert.foil .pic::after{content:"";position:absolute;inset:0;mix-blend-mode:color-dodge;opacity:.55;
+  background:linear-gradient(115deg,transparent 20%,#5fd68acc 36%,#d9ef6bcc 46%,#ffb35caa 56%,transparent 72%);background-size:250% 250%;animation:sheen 1.8s linear infinite alternate}
+@keyframes sheen{from{background-position:0 0}to{background-position:100% 100%}}
+.t1{font-size:26px;color:var(--soft)}
+.t1 b{color:var(--tx)}
+.t2{font-size:40px;font-weight:800;color:var(--rc);text-shadow:0 0 24px var(--rc);line-height:1.15}
+.tag{display:inline-block;margin-left:10px;font-size:18px;font-weight:800;color:#0b0b10;padding:2px 12px;border-radius:99px;background:linear-gradient(90deg,#5fd68a,#d9ef6b);vertical-align:middle}
+.queue{font-size:15px;color:var(--soft);opacity:.8}
+.cfg{position:fixed;inset:20px;display:grid;place-items:center;text-align:center;color:#fff;background:#000c;border-radius:20px;font-size:22px;padding:30px}
+.cfg[hidden]{display:none}
+</style>
+</head>
+<body>
+<div class="stage"><div class="alert" id="alert"><div class="pic"><img id="img" alt=""></div><div><div class="t1" id="t1"></div><div class="t2" id="t2"></div></div></div><div class="queue" id="queue"></div></div>
+<div class="cfg" id="cfg" hidden>Оверлей не настроен: заполни supabaseUrl и supabaseAnonKey в config.js</div>
+<script src="config.js"></script>
+<script>
+const C = window.ZVEZDNY_CONFIG || {};
+const URL_ = String(C.supabaseUrl || '').replace(/\/$/, ''), KEY = C.supabaseAnonKey || '';
+const LABEL = {common: 'Обычная', rare: 'Редкая', epic: 'Эпическая', legendary: 'ЛЕГЕНДАРНАЯ'};
+const HOLD = {common: 5000, rare: 6000, epic: 7500, legendary: 9500}; // чем реже, тем дольше на экране
+const q = new URLSearchParams(location.search);
+const MIN = q.get('min') || 'common'; // ?min=rare — показывать только от редкой и выше
+const ORDER = ['common', 'rare', 'epic', 'legendary'];
+const H = () => { const h = {apikey: KEY}; if (KEY.startsWith('eyJ')) h.Authorization = 'Bearer ' + KEY; return h; };
+const $ = id => document.getElementById(id);
+let cards = {}, last = 0, queue = [], busy = false;
+
+async function rest(p){ const r = await fetch(`${URL_}/rest/v1/${p}`, {headers: H()}); if (!r.ok) throw 0; return r.json(); }
+async function loadCards(){ (await rest('cards?select=id,name,rarity,img')).forEach(c => cards[c.id] = c); }
+function chime(r){
+  if (q.get('sound') === '0') return;
+  try {
+    const ac = chime.ac = chime.ac || new AudioContext(), now = ac.currentTime;
+    const notes = {common: [523], rare: [523, 659], epic: [523, 659, 784], legendary: [523, 659, 784, 1046]}[r];
+    notes.forEach((f, i) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.value = f;
+      g.gain.setValueAtTime(0, now + i * .12); g.gain.linearRampToValueAtTime(.08, now + i * .12 + .02); g.gain.exponentialRampToValueAtTime(.0001, now + i * .12 + .5);
+      o.connect(g).connect(ac.destination); o.start(now + i * .12); o.stop(now + i * .12 + .55); });
+  } catch(e){}
+}
+function next(){
+  if (busy || !queue.length){ $('queue').textContent = queue.length ? `ещё ${queue.length}` : ''; return; }
+  busy = true;
+  const p = queue.shift(), c = cards[p.card_id] || {name: 'Карточка', rarity: p.rarity, img: ''};
+  const a = $('alert'), r = c.rarity || p.rarity;
+  a.className = `alert r-${r}${p.foil ? ' foil' : ''}`;
+  $('img').src = c.img;
+  $('t1').innerHTML = `<b>${String(p.name || p.login).replace(/[<>&"]/g, '')}</b> открыл(а) звёздный пак`;
+  $('t2').innerHTML = `${LABEL[r]}: ${String(c.name).replace(/[<>&"]/g, '')}${p.foil ? '<span class="tag">HOLO</span>' : ''}`;
+  $('queue').textContent = queue.length ? `ещё ${queue.length}` : '';
+  requestAnimationFrame(() => requestAnimationFrame(() => a.classList.add('on')));
+  chime(r);
+  setTimeout(() => { a.classList.remove('on'); setTimeout(() => { busy = false; next(); }, 700); }, HOLD[r] || 5000);
+}
+async function poll(){
+  try {
+    const rows = await rest(`pulls?select=id,login,name,card_id,rarity,foil&id=gt.${last}&order=id.asc&limit=30`);
+    for (const p of rows){
+      last = Math.max(last, p.id);
+      if (!cards[p.card_id]) await loadCards().catch(() => {});
+      if (ORDER.indexOf(p.rarity) >= ORDER.indexOf(MIN)) queue.push(p);
+    }
+    next();
+  } catch(e){}
+}
+(async () => {
+  if (!URL_ || !KEY){ $('cfg').hidden = false; return; }
+  try { await loadCards(); const top = await rest('pulls?select=id&order=id.desc&limit=1'); last = top[0] ? top[0].id : 0; } catch(e){}
+  if (q.get('test') === '1'){ const ids = Object.keys(cards); const c = cards[ids[ids.length - 1]]; if (c){ queue.push({login: 'test', name: 'Тест', card_id: c.id, rarity: c.rarity, foil: true}); next(); } }
+  setInterval(poll, 2000);
+})();
+</script>
+</body>
+</html>

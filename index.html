@@ -87,6 +87,7 @@
     <section class="doc">
       <h2>Так это видят на стриме</h2>
       <p class="lh">Оверлей для OBS: добавляется как «Источник браузера»</p>
+      <p class="lh" id="obsLink" hidden></p>
       <div class="screen">
         <span class="live">LIVE</span>
         <div class="game">идёт стрим…</div>
@@ -109,12 +110,12 @@
     <div class="lock-ico"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
     <h2>Панель только для стримера</h2>
     <p class="lh" id="admLockTxt"></p>
-    <button class="twbtn" data-login><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3 3.5 7v12h4v2.5h2.5l2.5-2.5h3.5l5-5V3H5Zm14.5 10-3 3h-4L10 18.5V16H6.5V5h13v8Z" fill="currentColor"/><path d="M15 7.5h2v5h-2zM10.5 7.5h2v5h-2z" fill="currentColor"/></svg>Войти через Twitch</button>
+    <button class="twbtn" data-login="streamer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3 3.5 7v12h4v2.5h2.5l2.5-2.5h3.5l5-5V3H5Zm14.5 10-3 3h-4L10 18.5V16H6.5V5h13v8Z" fill="currentColor"/><path d="M15 7.5h2v5h-2zM10.5 7.5h2v5h-2z" fill="currentColor"/></svg>Войти через Twitch</button>
   </section>
   <div id="admBody" hidden>
   <div class="adm-head">
     <div><h2 class="adm-title">Панель стримера</h2>
-    <p class="lh">Добавляй карточки, выставляй редкость и шансы. В демо всё хранится в этом браузере; в рабочей версии — на сервере, а вход только через Twitch-аккаунт канала.</p></div>
+    <p class="lh" id="admHeadTxt">Добавляй карточки, выставляй редкость и шансы. В демо всё хранится в этом браузере; в рабочей версии — на сервере, а вход только через Twitch-аккаунт канала.</p></div>
   </div>
   <div class="adm-grid">
     <section class="doc" id="admForm">
@@ -151,6 +152,17 @@
       <div class="adm-actions"><button class="pill" id="admOddsSave">Сохранить шансы</button><button class="cat" id="admResetSet">Вернуть стандартный набор</button></div>
     </section>
   </div>
+
+  <section class="doc adm-live" id="admLive" hidden>
+    <h2>Twitch и сервер</h2>
+    <p class="lh" id="admLiveTxt"></p>
+    <div class="adm-actions"><button class="pill" id="admReward">Создать награду «Звёздный пак»</button></div>
+    <div class="adm-row3" style="margin-top:14px">
+      <label class="fld">Выдать пакетики зрителю (ник)<input id="admGrantLogin" placeholder="mur_mur"></label>
+      <label class="fld">Сколько<input type="number" id="admGrantN" value="1" min="1" max="100"></label>
+      <div class="fld"><span>&nbsp;</span><button class="cat" id="admGrant">Выдать</button></div>
+    </div>
+  </section>
 
   <section class="doc adm-list">
     <div class="adm-list-head"><h2>Карточки набора</h2><span class="cat" id="admCount"></span></div>
@@ -193,6 +205,7 @@
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<script src="config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

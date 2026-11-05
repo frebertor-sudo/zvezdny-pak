@@ -1,3 +1,14 @@
+/* ================= НАСТРОЙКИ =================
+   На сайте их задаёт файл config.js (window.ZVEZDNY_CONFIG); здесь — значения по умолчанию (демо). */
+const CONFIG = Object.assign({
+  twitchClientId: '',        // Client ID приложения Twitch
+  channel: 'zvezdny_kanal',  // логин канала маленькими буквами
+  supabaseUrl: '',           // https://xxxx.supabase.co
+  supabaseAnonKey: ''        // публичный anon / publishable ключ
+}, window.ZVEZDNY_CONFIG || {});
+const TWITCH = {clientId: CONFIG.twitchClientId, channel: String(CONFIG.channel).toLowerCase(), scopes: []};
+const SUPABASE = {url: String(CONFIG.supabaseUrl).replace(/\/$/, ''), anonKey: CONFIG.supabaseAnonKey};
+const LIVE = !!(SUPABASE.url && SUPABASE.anonKey && TWITCH.clientId);
 const IMG = {"cry": "img/cry.webp", "oops": "img/oops.webp", "love": "img/love.webp", "smug": "img/smug.webp", "surf": "img/surf.webp", "sun": "img/sun.webp", "moon": "img/moon.webp", "gaze": "img/gaze.webp", "shades": "img/shades.webp", "bunny": "img/bunny.webp"};
 const STAR = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 7.3 4.7 11 6 7.3 7.3 6 11 4.7 7.3 1 6 4.7 4.7Z" fill="currentColor"/></svg>';
 const RAR = {
@@ -23,7 +34,7 @@ const DEFAULT_ODDS = {common:50, rare:30, epic:15, legendary:5};
 let CARDS, COST = 5000, PITY = 10, FOIL = 0.12;
 function loadSet(){ // набор и настройки, которые стример меняет в панели
   let d = null;
-  try { d = JSON.parse(localStorage.getItem(SET_KEY)); } catch(e){}
+  try { if (!LIVE) d = JSON.parse(localStorage.getItem(SET_KEY)); } catch(e){}
   CARDS = (d && Array.isArray(d.cards) && d.cards.length ? d.cards : DEFAULT_CARDS).map(c => ({...c}));
   const o = (d && d.odds) || DEFAULT_ODDS;
   Object.keys(RAR).forEach(r => RAR[r].w = +o[r] >= 0 ? +o[r] : DEFAULT_ODDS[r]);
@@ -46,7 +57,7 @@ let SKEY = KEY; // ключ сохранения: свой у каждого в�
 try { S = JSON.parse(localStorage.getItem(KEY)) || fresh(); } catch(e){ S = fresh(); }
 if (!S.first) S.first = {};
 let recent = []; // выпадения этой сессии: {k, dupe, t}
-const save = () => { try { localStorage.setItem(SKEY, JSON.stringify(S)); } catch(e){} };
+const save = () => { if (LIVE) return; try { localStorage.setItem(SKEY, JSON.stringify(S)); } catch(e){} };
 const $ = id => document.getElementById(id);
 const fmt = n => n.toLocaleString('ru-RU');
 const byId = id => CARDS.find(c => c.id === id);
@@ -114,7 +125,7 @@ function renderOdds(){
 }
 
 function renderTop(){
-  $('bal').textContent = fmt(S.bal);
+  $('bal').textContent = fmt(LIVE ? (S.packs || 0) : S.bal);
   $('dust').textContent = fmt(S.dust);
   updateOpenBtn();
   $('pityTxt').textContent = `Гарантия эпической: ${S.since} из ${PITY}`;
@@ -457,12 +468,20 @@ function beginTear(){
   if (packState === 'tearing') return true;
   if (packState !== 'sealed') return false;
   if (!USER){ openLogin('Чтобы открыть пак, войди через Twitch: баллы и коллекция привязаны к твоему аккаунту.'); return false; }
-  if (S.bal < COST){ // в демо не блокируем: подкидываем баллы
-    S.bal += 20000; toast('Баллы закончились: демо добавило +20 000');
+  if (LIVE){
+    if (!(S.packs > 0)){
+      setNote(`Пакетиков нет. Купи награду «Звёздный пак» за баллы канала на twitch.tv/${TWITCH.channel} — пакетик появится здесь сам.`);
+      toast('Нет пакетиков'); return false;
+    }
+    S.packs--; pending = null; liveOpenRequest();
+  } else {
+    if (S.bal < COST){ // в демо не блокируем: подкидываем баллы
+      S.bal += 20000; toast('Баллы закончились: демо добавило +20 000');
+    }
+    S.bal -= COST; save();
+    pending = roll();
   }
-  S.bal -= COST; save();
-  pending = roll(); packState = 'tearing';
-  const R = RAR[pending.c.r], tier = tierOf(pending);
+  packState = 'tearing';
   const b = $('booster');
   b.classList.remove('idle', 'drop');
   b.querySelector('.bhint').classList.add('off');
@@ -590,7 +609,7 @@ function pullCard(f, t0, tOut, up, H){
 function updateOpenBtn(){
   const btn = $('open'); if (!btn) return;
   const cost = `<span class="cost">${fmt(COST)}</span>`;
-  if (packState === 'sealed'){ btn.innerHTML = USER ? 'Открыть сразу ' + cost : 'Войти, чтобы открыть'; btn.disabled = false; }
+  if (packState === 'sealed'){ btn.innerHTML = !USER ? 'Войти, чтобы открыть' : LIVE ? (S.packs > 0 ? `Открыть пакетик <span class="cost">${S.packs}</span>` : 'Нет пакетиков') : 'Открыть сразу ' + cost; btn.disabled = false; }
   else if (packState === 'tearing'){ btn.innerHTML = 'Дорвать за меня'; btn.disabled = false; }
   else if (packState === 'revealed'){ btn.innerHTML = 'Следующий пакетик'; btn.disabled = false; }
   else if (packState === 'waiting'){ btn.innerHTML = 'Перевернуть'; btn.disabled = false; }
@@ -607,7 +626,13 @@ function onOpenBtn(){
 }
 
 async function finishTear(){
-  if (packState === 'opening' || packState === 'revealed' || !pending) return;
+  if (packState === 'opening' || packState === 'revealed') return;
+  if (LIVE && !pending){ // ждём ответ сервера о выпавшей карте
+    packState = 'opening'; busy = true; updateOpenBtn();
+    await livePending;
+    if (!pending){ busy = false; if (packState === 'opening') spawnPack(); return; }
+  }
+  if (!pending) return;
   packState = 'opening'; busy = true; updateOpenBtn();
   const st = $('stage'), glow = $('glow'), rays = $('rays'), flash = $('flash'), b = $('booster');
   const {c, foil} = pending, R = RAR[c.r], tier = tierOf(pending), k = c.id + (foil ? '*' : '');
@@ -746,23 +771,30 @@ async function finishTear(){
   if (tier >= 2) flash.animate([{opacity:0}, {opacity:.45, offset:.3}, {opacity:0}], {duration: 500 * T});
 
   const big = c.r === 'epic' || c.r === 'legendary';
-  const dupe = (S.owned[k] || 0) > 0;
-  S.owned[k] = (S.owned[k] || 0) + 1;
-  if (!S.first[k]) S.first[k] = Date.now();
+  const dupe = LIVE ? !!pending.dupe : (S.owned[k] || 0) > 0;
+  if (!LIVE){ // в живом режиме всё это уже посчитал сервер
+    S.owned[k] = (S.owned[k] || 0) + 1;
+    if (!S.first[k]) S.first[k] = Date.now();
+    S.pulls++;
+    S.since = big ? 0 : S.since + 1;
+    if (dupe){ S.dust += R.dust * (foil ? 2 : 1); S.dupes++; }
+  }
   recent.unshift({k, dupe, t: Date.now()}); if (recent.length > 12) recent.pop();
-  S.pulls++;
-  S.since = big ? 0 : S.since + 1;
-  if (dupe){ S.dust += R.dust * (foil ? 2 : 1); S.dupes++; }
   setInfo(`<div class="info-row">${rarityPill(c.r)}${foil ? '<span class="holo-tag">HOLO</span>' : ''}<span class="cat">${dupe ? 'Дубль' : 'Новая!'}</span></div><h1 class="title">${c.name}</h1>`);
   setNote(dupe ? `Дубль: +${R.dust * (foil ? 2 : 1)} лесной пыльцы. ${c.flavor}` : `Новая карточка в альбоме. ${c.flavor}`);
   showAlert(nick(), c, foil);
-  addFeed(nick(), c, foil);
+  if (!LIVE) addFeed(nick(), c, foil); // в живом режиме лента придёт с сервера
   pending = null; packState = 'revealed'; busy = false;
   save(); renderTop(); renderAlbum(); renderRecent(); updateOpenBtn();
   $('inspect').hidden = false;
 }
 
 function craft(k){
+  if (LIVE){
+    const foil = k.endsWith('*'), id = k.replace('*', '');
+    api('craft', {card_id: id, foil}).then(d => { applyMe(d); toast(`Выращено: ${byId(id).name}${foil ? ' (holo)' : ''}`); }).catch(e => toast(e.message));
+    return;
+  }
   const foil = k.endsWith('*'), c = byId(k.replace('*', '')), cost = RAR[c.r].craft * (foil ? 3 : 1);
   if (S.dust < cost) return;
   S.dust -= cost; S.owned[k] = 1; if (!S.first[k]) S.first[k] = Date.now(); save(); renderTop(); renderAlbum();
@@ -926,8 +958,10 @@ $('album').addEventListener('click', e => {
 });
 
 /* чужие выпадения, чтобы лента жила */
-for (let i = 0; i < 5; i++){ const {c, foil} = roll(); addFeed(BOTS[i], c, foil, false); }
-setInterval(() => { const {c, foil} = roll(); addFeed(BOTS[Math.floor(Math.random() * BOTS.length)], c, foil); }, 7000);
+if (!LIVE){
+  for (let i = 0; i < 5; i++){ const {c, foil} = roll(); addFeed(BOTS[i], c, foil, false); }
+  setInterval(() => { const {c, foil} = roll(); addFeed(BOTS[Math.floor(Math.random() * BOTS.length)], c, foil); }, 7000);
+}
 
 /* частицы на фоне, как у образца */
 (() => {
@@ -1070,7 +1104,20 @@ function admStartEdit(id){
   admRarPick(); admPreview(); renderAdminList();
   $('admForm').scrollIntoView({behavior: 'smooth', block: 'start'});
 }
+async function liveAdmSave(){
+  const name = $('admName').value.trim();
+  if (!ADM.img && !ADM.src) return toast('Добавь картинку');
+  if (!name) return toast('Напиши название карточки');
+  const old = ADM.edit ? byId(ADM.edit) : null;
+  const body = {id: ADM.edit || undefined, name, flavor: $('admFlavor').value.trim(), rarity: ADM.r, tall: ADM.src ? true : (old ? old.tall : true)};
+  if (ADM.src) body.image = admCrop();
+  $('admSave').disabled = true;
+  try { await api('card_save', body); toast(ADM.edit ? 'Карточка обновлена' : `Карточка «${name}» добавлена в набор`); admResetForm(); await liveReload(); }
+  catch(e){ toast(e.message); }
+  $('admSave').disabled = false;
+}
 function admSave(){
+  if (LIVE) return liveAdmSave();
   const name = $('admName').value.trim();
   if (!ADM.img && !ADM.src) return toast('Добавь картинку');
   if (!name) return toast('Напиши название карточки');
@@ -1113,7 +1160,7 @@ function oddsLive(){
   Object.keys(RAR).forEach(r => $('admOdds').querySelector(`[data-pct="${r}"]`).textContent = +(w[r] / sum * 100).toFixed(1) + '%');
   return w;
 }
-function renderAdmin(){ admRarPick(); admPreview(); renderAdminList(); renderOddsEditor(); }
+function renderAdmin(){ admRarPick(); admPreview(); renderAdminList(); renderOddsEditor(); if (LIVE) renderLiveAdmin(); }
 
 $('admFile').addEventListener('change', e => admLoadFile(e.target.files[0]));
 ['dragenter','dragover'].forEach(ev => $('admDrop').addEventListener(ev, e => { e.preventDefault(); $('admDrop').classList.add('over'); }));
@@ -1128,6 +1175,7 @@ $('admCancel').addEventListener('click', admResetForm);
 $('admCards').addEventListener('change', e => {
   const s = e.target.closest('[data-rar]'); if (!s) return;
   const c = byId(s.closest('[data-id]').dataset.id); c.r = s.value;
+  if (LIVE){ api('card_save', {id: c.id, name: c.name, flavor: c.flavor, rarity: c.r, tall: c.tall}).then(() => { toast(`«${c.name}» теперь ${RAR[c.r].label.toLowerCase()}`); liveReload(); }).catch(err => { toast(err.message); liveReload(); }); return; }
   if (saveSet()){ renderAdminList(); renderAll(); toast(`«${c.name}» теперь ${RAR[c.r].label.toLowerCase()}`); }
 });
 $('admCards').addEventListener('click', e => {
@@ -1145,6 +1193,7 @@ $('admCards').addEventListener('click', e => {
     if (ADM.edit === id) admResetForm();
     toast(`«${name}» удалена из набора`);
   }
+  if (LIVE){ (act === 'del' ? api('card_delete', {id}) : api('card_order', {ids: CARDS.map(c => c.id)})).then(liveReload).catch(err => { toast(err.message); liveReload(); }); return; }
   renumber(); if (saveSet()){ renderAdminList(); renderAll(); }
 });
 $('admOdds').addEventListener('input', e => {
@@ -1159,6 +1208,7 @@ $('admOddsSave').addEventListener('click', () => {
   FOIL = Math.min(100, Math.max(0, +$('admFoil').value || 0)) / 100;
   PITY = Math.min(100, Math.max(2, Math.round(+$('admPity').value || 10)));
   COST = Math.max(1, Math.round(+$('admCost').value || 5000));
+  if (LIVE){ api('settings_save', {odds: w, foil: FOIL * 100, pity: PITY, cost: COST}).then(() => { toast('Шансы и цена сохранены на сервере'); liveReload(); }).catch(err => toast(err.message)); return; }
   if (saveSet()){ renderOddsEditor(); renderAll(); toast('Шансы и цена сохранены'); }
 });
 $('admResetSet').addEventListener('click', e => {
@@ -1178,11 +1228,6 @@ function renderAll(){ renderOdds(); renderFilters(); renderTop(); renderAlbum();
    2. Скопируй Client ID в TWITCH.clientId, ник канала — в TWITCH.channel.
    Секрет клиента в браузер НЕ кладём — он нужен только серверу (Supabase).
    Роль стримера здесь — только интерфейс; настоящую проверку токена делает сервер (/oauth2/validate). */
-const TWITCH = {
-  clientId: '',             // ← вставь Client ID
-  channel: 'zvezdny_kanal', // ← ник канала (логин на Twitch, маленькими буквами)
-  scopes: []                // для входа достаточно базового профиля
-};
 const AUTH_KEY = 'zvezdny-auth-v1';
 let USER = null; // {login, name, avatar, id, token, demo}
 const realAuth = () => !!TWITCH.clientId;
@@ -1202,7 +1247,7 @@ function twitchAuthorize(){
   const state = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
   try { sessionStorage.setItem('zvezdny-oauth-state', state); localStorage.setItem('zvezdny-oauth-state', state); } catch(e){}
   const url = 'https://id.twitch.tv/oauth2/authorize?' + new URLSearchParams({
-    client_id: TWITCH.clientId, redirect_uri: redirectUri(), response_type: 'token', scope: TWITCH.scopes.join(' '), state
+    client_id: TWITCH.clientId, redirect_uri: redirectUri(), response_type: 'token', scope: (loginScopes || TWITCH.scopes).join(' '), state
   });
   if (window.top !== window){ // страница внутри фрейма — вход в отдельном окне
     const w = window.open(url, 'twitch-login', 'width=520,height=720');
@@ -1217,7 +1262,7 @@ async function twitchFetchUser(token){
   if (info.client_id !== TWITCH.clientId) throw new Error('client');
   const u = await fetch('https://api.twitch.tv/helix/users', {headers: {Authorization: 'Bearer ' + token, 'Client-Id': TWITCH.clientId}});
   const d = u.ok ? (await u.json()).data[0] : null;
-  return {login: info.login, id: info.user_id, name: d ? d.display_name : info.login, avatar: d ? d.profile_image_url : '', token,
+  return {scopes: info.scopes || [], login: info.login, id: info.user_id, name: d ? d.display_name : info.login, avatar: d ? d.profile_image_url : '', token,
           exp: Date.now() + (info.expires_in || 3600) * 1000, demo: false};
 }
 
@@ -1230,6 +1275,7 @@ function setUser(u){
   try { loaded = JSON.parse(localStorage.getItem(SKEY)); } catch(e){}
   if (u && !loaded){ try { loaded = JSON.parse(localStorage.getItem(KEY)); } catch(e){} } // первый вход: забираем демо-коллекцию
   S = loaded || fresh(); if (!S.first) S.first = {};
+  if (LIVE){ S = emptyState(); if (u) liveMe(); }
   if (u) save();
   recent = []; renderRecent();
   renderUser(); renderAll();
@@ -1306,7 +1352,8 @@ addEventListener('message', async e => {
 });
 
 document.addEventListener('click', e => {
-  if (e.target.closest('[data-login]')) openLogin();
+  const lg = e.target.closest('[data-login]');
+  if (lg){ loginScopes = lg.dataset.login === 'streamer' ? STREAMER_SCOPES : null; openLogin(lg.dataset.login === 'streamer' ? 'Войди аккаунтом канала: сайт попросит доступ к наградам за баллы, чтобы создать «Звёздный пак».' : undefined); }
   if (e.target.closest('#logout')) logout();
 });
 $('lgClose').addEventListener('click', closeLogin);
@@ -1329,6 +1376,134 @@ $('lgNick').addEventListener('keydown', e => { if (e.key === 'Enter') demoLogin(
   handleOAuthReturn();
 })();
 
-renderAll(); spawnPack();
+/* ================= SUPABASE: живой режим =================
+   Включается сам, когда в config.js заданы supabaseUrl, supabaseAnonKey и twitchClientId.
+   Пакетики приходят с Twitch (награда за баллы канала), розыгрыш и коллекции — на сервере. */
+let livePending = null, LIVESET = null, lastPullId = 0, loginScopes = null;
+const STREAMER_SCOPES = ['channel:manage:redemptions'];
+const emptyState = () => ({bal: 0, packs: 0, dust: 0, pulls: 0, since: 0, dupes: 0, owned: {}, first: {}});
+function sbHeaders(){
+  const h = {apikey: SUPABASE.anonKey};
+  if (SUPABASE.anonKey.startsWith('eyJ')) h.Authorization = 'Bearer ' + SUPABASE.anonKey; // старый anon-ключ (JWT)
+  return h;
+}
+async function api(action, payload = {}){
+  if (!USER || !USER.token) throw new Error('Войди через Twitch');
+  let r;
+  try {
+    r = await fetch(`${SUPABASE.url}/functions/v1/api`, {
+      method: 'POST',
+      headers: {...sbHeaders(), 'Content-Type': 'application/json', 'x-twitch-token': USER.token},
+      body: JSON.stringify({action, ...payload})
+    });
+  } catch(e){ throw new Error('Сервер недоступен, проверь интернет'); }
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401){ setUser(null); openLogin('Сессия Twitch истекла — войди снова.'); }
+  if (!r.ok) throw new Error(d.error || 'Ошибка сервера');
+  return d;
+}
+async function rest(path){
+  const r = await fetch(`${SUPABASE.url}/rest/v1/${path}`, {headers: sbHeaders()});
+  if (!r.ok) throw new Error('Не удалось загрузить данные');
+  return r.json();
+}
+async function liveLoadSet(){
+  const [cards, sets] = await Promise.all([
+    rest('cards?select=id,sort,name,flavor,rarity,img,tall&active=eq.true&order=sort.asc'),
+    rest('settings?select=odds,foil,pity,cost,reward_id&id=eq.1')
+  ]);
+  const s = sets[0] || {};
+  CARDS = cards.map(c => ({id: c.id, name: c.name, flavor: c.flavor, r: c.rarity, img: c.img, tall: c.tall}));
+  renumber();
+  Object.keys(RAR).forEach(r => RAR[r].w = s.odds && s.odds[r] != null ? +s.odds[r] : RAR[r].w);
+  FOIL = (s.foil ?? 12) / 100; PITY = s.pity || 10; COST = s.cost || 5000; LIVESET = s;
+}
+async function liveReload(){
+  try { await liveLoadSet(); } catch(e){ toast(e.message); }
+  renderAll(); if (!$('tab-admin').hidden) renderAdminGate();
+}
+function applyMe(d){ // ответ сервера → локальное состояние для отрисовки
+  const p = d.profile || {};
+  S = {...emptyState(), packs: p.packs || 0, dust: p.dust || 0, pulls: p.pulls || 0, since: p.since || 0, dupes: p.dupes || 0};
+  (d.owned || []).forEach(o => { const k = o.card_id + (o.foil ? '*' : ''); S.owned[k] = o.count; S.first[k] = Date.parse(o.first_at); });
+  if (USER && d.scopes) USER.scopes = d.scopes;
+  renderTop(); renderAlbum();
+}
+async function liveMe(){
+  try { applyMe(await api('me')); if (packState === 'sealed') updateOpenBtn(); }
+  catch(e){ toast(e.message); }
+}
+function liveOpenRequest(){ // розыгрыш на сервере, пока зритель рвёт пакетик
+  livePending = api('open').then(async d => {
+    applyMe(d);
+    let c = byId(d.result.card_id);
+    if (!c){ await liveLoadSet(); c = byId(d.result.card_id); renderAll(); }
+    if (!c) throw new Error('Карточка не найдена, обнови страницу');
+    pending = {c, foil: d.result.foil, dupe: d.result.dupe};
+  }).catch(e => {
+    pending = null; toast(e.message);
+    if (packState === 'tearing' || packState === 'auto') spawnPack();
+  });
+}
+async function pollFeed(first){
+  if (document.hidden && !first) return;
+  try {
+    const rows = await rest(`pulls?select=id,login,name,card_id,foil&id=gt.${lastPullId}&order=id.desc&limit=${first ? 8 : 20}`);
+    rows.reverse().forEach(r => {
+      lastPullId = Math.max(lastPullId, r.id);
+      const c = byId(r.card_id); if (!c) return;
+      addFeed((r.name || r.login).replace(/[<>&"]/g, ''), c, r.foil);
+      if (!first && !(USER && r.login === USER.login)) showAlert((r.name || r.login).replace(/[<>&"]/g, ''), c, r.foil);
+    });
+  } catch(e){}
+}
+function renderLiveAdmin(){
+  const box = $('admLive'); if (!box) return;
+  box.hidden = !LIVE; if (!LIVE) return;
+  const hasScope = USER && (USER.scopes || []).includes('channel:manage:redemptions');
+  $('admLiveTxt').innerHTML = !hasScope
+    ? 'Чтобы создать награду на канале, войди заново с доступом к наградам: <button class="twbtn" data-login="streamer">Перевойти</button>'
+    : LIVESET && LIVESET.reward_id
+      ? `Награда «Звёздный пак» подключена: каждая покупка за ${fmt(COST)} баллов даёт зрителю пакетик. Кнопка ниже обновит цену и подписку.`
+      : 'Награды пока нет. Кнопка создаст на канале награду «Звёздный пак» и подпишет сервер на её покупки.';
+  $('admReward').disabled = !hasScope;
+  $('admReward').textContent = LIVESET && LIVESET.reward_id ? 'Обновить награду на Twitch' : 'Создать награду «Звёздный пак»';
+}
+async function liveBoot(){
+  // интерфейс под настоящие пакетики
+  const balChip = $('bal').parentElement;
+  balChip.title = 'Неоткрытые пакетики: покупаются как награда за баллы канала на Twitch';
+  balChip.lastChild.textContent = ' пакетиков';
+  $('earn').hidden = true; $('reset').hidden = true; $('admResetSet').hidden = true;
+  $('admHeadTxt').textContent = 'Добавляй карточки, выставляй редкость и шансы. Изменения сразу сохраняются на сервере и видны всем зрителям.';
+  const obs = $('obsLink');
+  if (obs){
+    const url = location.origin + location.pathname.replace(/[^/]*$/, '') + 'overlay.html';
+    obs.hidden = false;
+    obs.innerHTML = `Ссылка для OBS (Источник браузера, 1920×1080): <code>${url}</code> <button class="cat" id="obsCopy">Копировать</button>`;
+    $('obsCopy').addEventListener('click', () => { navigator.clipboard?.writeText(url).then(() => toast('Ссылка скопирована')).catch(() => toast(url)); });
+  }
+  try { await liveLoadSet(); } catch(e){ toast('Сервер недоступен: показываю стандартный набор'); }
+  renderAll(); spawnPack();
+  if (USER && !USER.demo) await liveMe();
+  await pollFeed(true);
+  setInterval(() => pollFeed(false), 4000);
+  setInterval(() => { if (USER && !document.hidden && packState === 'sealed') liveMe(); }, 30000); // пакетики, купленные на стриме
+}
+
+$('admReward')?.addEventListener('click', async e => {
+  const b = e.currentTarget; b.disabled = true;
+  try { const d = await api('reward_setup'); await liveLoadSet(); toast(d.status === 'already_exists' ? 'Награда обновлена' : 'Награда создана, подписка оформлена'); }
+  catch(err){ toast(err.message); }
+  renderLiveAdmin();
+});
+$('admGrant')?.addEventListener('click', async () => {
+  const login = $('admGrantLogin').value.trim(), n = +$('admGrantN').value || 1;
+  if (!login) return toast('Впиши ник зрителя');
+  try { const d = await api('grant', {login, n}); toast(`Выдано: ${n}. Теперь у зрителя ${d.packs}`); if (USER && login.toLowerCase().replace(/^@/, '') === USER.login) liveMe(); }
+  catch(err){ toast(err.message); }
+});
+
+if (LIVE) liveBoot(); else { renderAll(); spawnPack(); }
 setTab((location.hash || '').slice(1));
 setTimeout(() => showAlert('lavanda_42', CARDS[2], false), 600);
