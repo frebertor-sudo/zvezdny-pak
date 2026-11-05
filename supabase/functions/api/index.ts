@@ -1,8 +1,9 @@
-// Единая точка API сайта. Каждый запрос подтверждается Twitch-токеном (заголовок x-twitch-token).
+// Единая точка API сайта. Запросы подтверждаются сессией сайта (x-session), токеном Twitch (x-twitch-token) или ключом стримера (x-admin-key).
 import {
-  appToken, CHANNEL, CLIENT_ID, corsHeaders, db, EVENTSUB_SECRET, HttpError, json, SUPABASE_URL,
-  twitchUser, type TwitchUser,
+  adminKeyOk, appToken, CHANNEL, CLIENT_ID, corsHeaders, db, EVENTSUB_SECRET, HttpError, json, sha256, SUPABASE_URL,
+  type SiteUser, whoami,
 } from "../_shared/common.ts";
+type TwitchUser = SiteUser;
 
 const RARITIES = ["common", "rare", "epic", "legendary"];
 const ERR_TEXT: Record<string, string> = {
@@ -28,9 +29,15 @@ function rpcError(e: { message?: string } | null) {
   throw new HttpError(code ? 409 : 500, code ? ERR_TEXT[code] : "Ошибка базы");
 }
 
-function requireStreamer(u: TwitchUser) {
-  if (!CHANNEL || u.login !== CHANNEL) throw new HttpError(403, "Только для стримера канала");
+function requireStreamer(u: TwitchUser | null, admin = false) {
+  if (admin) return; // запрос пришёл с ключом стримера
+  if (!u || !CHANNEL || u.login !== CHANNEL) throw new HttpError(403, "Только для стримера канала");
 }
+function requireUser(u: TwitchUser | null): TwitchUser {
+  if (!u) throw new HttpError(401, "no_session");
+  return u;
+}
+const LOGIN_RE = /^[a-z0-9_]{3,25}$/;
 
 // картинка приходит как data:URL после обрезки в панели
 async function uploadImage(id: string, dataUrl: string): Promise<string> {
@@ -114,17 +121,58 @@ Deno.serve(async (req) => {
   try {
     if (req.method !== "POST") throw new HttpError(405, "POST only");
     const body = await req.json().catch(() => ({}));
-    const u = await twitchUser(req);
     const sb = db();
+    const ADMIN = adminKeyOk(req);
+
+    // ---------- вход через чат: без авторизации ----------
+    if (body.action === "login_start") {
+      const login = String(body.login ?? "").trim().toLowerCase().replace(/^@/, "");
+      if (!LOGIN_RE.test(login)) throw new HttpError(400, "Ник на Twitch: 3–25 символов, латиница, цифры и _");
+      const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const { count } = await sb.from("logins").select("id", { count: "exact", head: true }).eq("login", login).gte("created_at", since);
+      if ((count ?? 0) >= 5) throw new HttpError(429, "Слишком много попыток, подожди пару минут");
+      const code = String(1000 + Math.floor(Math.random() * 9000));
+      const { data, error } = await sb.from("logins").insert({ login, code }).select("id,expires_at").single();
+      if (error) throw new HttpError(500, "Не удалось начать вход");
+      const { data: s } = await sb.from("settings").select("bridge_seen_at").eq("id", 1).single();
+      const online = !!s?.bridge_seen_at && Date.now() - Date.parse(s.bridge_seen_at) < 3 * 60 * 1000;
+      return json(req, { request_id: data.id, code, channel: CHANNEL, expires_at: data.expires_at, bridge_online: online });
+    }
+    if (body.action === "login_poll") {
+      const { data: l } = await sb.from("logins").select("login,verified_at,expires_at,token,twitch_id").eq("id", String(body.request_id)).maybeSingle();
+      if (!l) throw new HttpError(404, "Попытка входа не найдена");
+      if (l.verified_at && l.token) {
+        await sb.from("logins").update({ token: null }).eq("id", String(body.request_id)); // токен отдаём один раз
+        const { data: p } = await sb.from("profiles").select("twitch_id,login,name,avatar").eq("twitch_id", l.twitch_id).maybeSingle();
+        return json(req, { ok: true, token: l.token, user: p });
+      }
+      if (Date.parse(l.expires_at) < Date.now()) return json(req, { expired: true });
+      return json(req, { pending: true });
+    }
+
+    const who = await whoami(req);
+    if (body.action === "logout") {
+      const s = (req.headers.get("x-session") ?? "").trim();
+      if (s) await sb.from("sessions").delete().eq("token_hash", await sha256(s));
+      return json(req, { ok: true });
+    }
+    if (body.action === "me" && !who) {
+      if (!ADMIN) throw new HttpError(401, "no_session");
+      return json(req, { profile: null, owned: [], is_streamer: true, scopes: [] });
+    }
+    const isAdminOnly = !["me", "open", "craft"].includes(String(body.action));
+    if (!isAdminOnly) requireUser(who);
+    else requireStreamer(who, ADMIN);
+    const u = who as TwitchUser;
 
     switch (body.action) {
       // ---------- зритель ----------
       case "me": {
         await sb.from("profiles").upsert(
-          { twitch_id: u.id, login: u.login, name: u.name, avatar: u.avatar, updated_at: new Date().toISOString() },
+          { twitch_id: u.id, login: u.login, name: u.name, ...(u.avatar ? { avatar: u.avatar } : {}), updated_at: new Date().toISOString() },
           { onConflict: "twitch_id", ignoreDuplicates: false },
         );
-        return json(req, { ...(await profileWithCollection(u.id)), is_streamer: u.login === CHANNEL, scopes: u.scopes });
+        return json(req, { ...(await profileWithCollection(u.id)), is_streamer: ADMIN || u.login === CHANNEL, scopes: u.scopes });
       }
       case "open": {
         const { data, error } = await sb.rpc("open_pack", { p_uid: u.id });
@@ -139,7 +187,7 @@ Deno.serve(async (req) => {
 
       // ---------- стример ----------
       case "card_save": {
-        requireStreamer(u);
+        requireStreamer(u, ADMIN);
         const name = String(body.name ?? "").trim().slice(0, 40);
         const flavor = String(body.flavor ?? "").trim().slice(0, 120);
         const rarity = String(body.rarity);
@@ -158,18 +206,18 @@ Deno.serve(async (req) => {
         return json(req, { ok: true, id });
       }
       case "card_delete": {
-        requireStreamer(u);
+        requireStreamer(u, ADMIN);
         await sb.from("cards").update({ active: false }).eq("id", String(body.id));
         return json(req, { ok: true });
       }
       case "card_order": {
-        requireStreamer(u);
+        requireStreamer(u, ADMIN);
         const ids: string[] = Array.isArray(body.ids) ? body.ids.map(String) : [];
         await Promise.all(ids.map((id, i) => sb.from("cards").update({ sort: i + 1 }).eq("id", id)));
         return json(req, { ok: true });
       }
       case "settings_save": {
-        requireStreamer(u);
+        requireStreamer(u, ADMIN);
         const odds: Record<string, number> = {};
         for (const r of RARITIES) odds[r] = Math.max(0, Math.min(1000, Number(body.odds?.[r]) || 0));
         if (!Object.values(odds).some((v) => v > 0)) throw new HttpError(400, "Хотя бы одна редкость должна выпадать");
@@ -184,7 +232,7 @@ Deno.serve(async (req) => {
         return json(req, { ok: true });
       }
       case "grant": { // выдать пакетики зрителю вручную (розыгрыши, тесты)
-        requireStreamer(u);
+        requireStreamer(u, ADMIN);
         const login = String(body.login ?? "").toLowerCase().replace(/^@/, "");
         const n = Math.max(1, Math.min(100, Math.round(Number(body.n) || 1)));
         const { data: p } = await sb.from("profiles").select("twitch_id,login,name").eq("login", login).maybeSingle();
@@ -194,7 +242,11 @@ Deno.serve(async (req) => {
         return json(req, { ok: true, packs: left });
       }
       case "reward_setup":
+        if (!CLIENT_ID || !u) throw new HttpError(400, "Без приложения Twitch награду создают вручную на Twitch");
         return json(req, await setupReward(u));
+      case "reward_unbind": // отвязать награду, чтобы привязать другую
+        await sb.from("settings").update({ reward_id: null }).eq("id", 1);
+        return json(req, { ok: true });
 
       default:
         throw new HttpError(400, "unknown_action");

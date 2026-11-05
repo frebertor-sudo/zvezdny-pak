@@ -26,10 +26,15 @@ html,body{margin:0;background:transparent;overflow:hidden;font:16px/1.4 system-u
 .queue{font-size:15px;color:var(--soft);opacity:.8}
 .cfg{position:fixed;inset:20px;display:grid;place-items:center;text-align:center;color:#fff;background:#000c;border-radius:20px;font-size:22px;padding:30px}
 .cfg[hidden]{display:none}
+.bstat{position:fixed;left:12px;top:12px;font-size:14px;padding:6px 12px;border-radius:99px;background:#000b;color:#fff;display:flex;gap:8px;align-items:center}
+.bstat[hidden]{display:none}
+.bstat i{width:10px;height:10px;border-radius:50%;background:#ffb35c}
+.bstat.ok i{background:#5fd68a;box-shadow:0 0 10px #5fd68a}
 </style>
 </head>
 <body>
 <div class="stage"><div class="alert" id="alert"><div class="pic"><img id="img" alt=""></div><div><div class="t1" id="t1"></div><div class="t2" id="t2"></div></div></div><div class="queue" id="queue"></div></div>
+<div class="bstat" id="bstat" hidden><i></i><span id="bstatTxt">мост: подключаюсь…</span></div>
 <div class="cfg" id="cfg" hidden>Оверлей не настроен: заполни supabaseUrl и supabaseAnonKey в config.js</div>
 <script src="config.js"></script>
 <script>
@@ -86,7 +91,55 @@ async function poll(){
   try { await loadCards(); const top = await rest('pulls?select=id&order=id.desc&limit=1'); last = top[0] ? top[0].id : 0; } catch(e){}
   if (q.get('test') === '1'){ const ids = Object.keys(cards); const c = cards[ids[ids.length - 1]]; if (c){ queue.push({login: 'test', name: 'Тест', card_id: c.id, rarity: c.rarity, foil: true}); next(); } }
   setInterval(poll, 2000);
+  if (q.get('key')) startBridge(q.get('key'));
 })();
+
+/* ---------- мост чата: анонимно читаем чат канала и пересылаем коды входа и покупки награды ---------- */
+function startBridge(key){
+  const channel = String(q.get('channel') || C.channel || '').toLowerCase().replace(/^#/, '');
+  const st = $('bstat'), stTxt = $('bstatTxt');
+  if (q.get('status') === '1') st.hidden = false;
+  const say = (ok, txt) => { st.classList.toggle('ok', ok); stTxt.textContent = txt; };
+  if (!channel){ say(false, 'мост: не указан канал (channel в config.js)'); st.hidden = false; return; }
+  let ws, backoff = 1000, queue = [], sent = 0, packs = 0, logins = 0, keyBad = false;
+  const tags = raw => { const o = {}; raw.split(';').forEach(kv => { const i = kv.indexOf('='); o[kv.slice(0, i)] = kv.slice(i + 1).replace(/\\s/g, ' ').replace(/\\:/g, ';').replace(/\\\\/g, '\\'); }); return o; };
+  function onLine(line){
+    if (line.startsWith('PING')) return ws.send('PONG :tmi.twitch.tv');
+    const m = /^@(\S+) :([^!]+)!\S+ PRIVMSG #\S+ :(.*)$/.exec(line);
+    if (!m) return;
+    const tg = tags(m[1]), login = m[2], text = m[3];
+    const base = {user_id: tg['user-id'], login, name: tg['display-name'] || login, text: text.slice(0, 200), msg_id: tg['id']};
+    if (tg['custom-reward-id']) queue.push({...base, kind: 'reward', reward_id: tg['custom-reward-id']});
+    else if (/\d{4}/.test(text) && text.length <= 40) queue.push({...base, kind: 'msg'});
+  }
+  function connect(){
+    ws = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
+    ws.onopen = () => {
+      ws.send('CAP REQ :twitch.tv/tags twitch.tv/commands');
+      ws.send('PASS SCHMOOPIIE');
+      ws.send('NICK justinfan' + Math.floor(10000 + Math.random() * 80000)); // анонимный читатель, вход не нужен
+      ws.send('JOIN #' + channel);
+      backoff = 1000; say(!keyBad, keyBad ? 'мост: неверный ключ' : `мост: слушаю #${channel}`);
+    };
+    ws.onmessage = e => String(e.data).split('\r\n').filter(Boolean).forEach(onLine);
+    ws.onclose = () => { say(false, 'мост: переподключаюсь…'); setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 30000); };
+  }
+  async function flush(force){
+    if (keyBad || (!queue.length && !force)) return;
+    const events = queue.splice(0, 50);
+    try {
+      const r = await fetch(`${URL_}/functions/v1/bridge`, {method: 'POST', headers: {...H(), 'Content-Type': 'application/json', 'x-bridge-key': key}, body: JSON.stringify({events})});
+      if (r.status === 403){ keyBad = true; say(false, 'мост: неверный ключ стримера'); st.hidden = false; return; }
+      const d = await r.json();
+      sent += events.length; packs += d.packs || 0; logins += d.logins || 0;
+      if (d.bound) say(true, 'мост: награда привязана!');
+      else say(true, `мост: #${channel} · входов ${logins} · пакетиков ${packs}`);
+    } catch(e){ queue.unshift(...events); say(false, 'мост: нет связи с сервером'); }
+  }
+  connect();
+  setInterval(() => flush(false), 1500);
+  flush(true); setInterval(() => flush(true), 60000); // «я на связи» для сайта
+}
 </script>
 </body>
 </html>

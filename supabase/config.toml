@@ -4,3 +4,6 @@ verify_jwt = false
 
 [functions.eventsub]
 verify_jwt = false
+
+[functions.bridge]
+verify_jwt = false

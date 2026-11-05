@@ -6,6 +6,7 @@ export const CLIENT_SECRET = Deno.env.get("TWITCH_CLIENT_SECRET") ?? "";
 export const CHANNEL = (Deno.env.get("TWITCH_CHANNEL") ?? "").toLowerCase();
 export const EVENTSUB_SECRET = Deno.env.get("EVENTSUB_SECRET") ?? "";
 export const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+export const ADMIN_KEY = Deno.env.get("ADMIN_KEY") ?? ""; // ключ стримера: панель и мост чата
 
 // Разрешённые адреса сайта (через запятую). По умолчанию — GitHub Pages и локальная разработка.
 const ORIGINS = (Deno.env.get("SITE_ORIGINS") ?? "https://frebertor-sudo.github.io,http://localhost:8080")
@@ -15,7 +16,7 @@ export function corsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("Origin") ?? "";
   return {
     "Access-Control-Allow-Origin": ORIGINS.includes(origin) ? origin : ORIGINS[0],
-    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-twitch-token",
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-twitch-token, x-session, x-admin-key, x-bridge-key",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Vary": "Origin",
   };
@@ -69,4 +70,37 @@ export async function appToken(): Promise<string> {
   });
   if (!r.ok) throw new HttpError(502, "app_token_failed");
   return (await r.json()).access_token;
+}
+
+export function safeEqual(a: string, b: string) {
+  if (!a || !b || a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+export const adminKeyOk = (req: Request, header = "x-admin-key") =>
+  ADMIN_KEY.length >= 16 && safeEqual((req.headers.get(header) ?? "").trim(), ADMIN_KEY);
+
+export async function sha256(s: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+export function randomToken(bytes = 32): string {
+  const b = crypto.getRandomValues(new Uint8Array(bytes));
+  return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export type SiteUser = { id: string; login: string; name: string; avatar: string; scopes: string[]; token: string };
+
+// Кто делает запрос: сессия сайта (вход через чат) или токен Twitch (если есть приложение).
+export async function whoami(req: Request): Promise<SiteUser | null> {
+  const session = (req.headers.get("x-session") ?? "").trim();
+  if (session) {
+    const { data } = await db().from("sessions").select("twitch_id,login,expires_at").eq("token_hash", await sha256(session)).maybeSingle();
+    if (!data || Date.parse(data.expires_at) < Date.now()) throw new HttpError(401, "bad_session");
+    const { data: p } = await db().from("profiles").select("name,avatar").eq("twitch_id", data.twitch_id).maybeSingle();
+    return { id: data.twitch_id, login: data.login, name: p?.name ?? data.login, avatar: p?.avatar ?? "", scopes: [], token: "" };
+  }
+  if ((req.headers.get("x-twitch-token") ?? "").trim() && CLIENT_ID) return await twitchUser(req);
+  return null;
 }

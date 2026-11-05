@@ -8,7 +8,11 @@ const CONFIG = Object.assign({
 }, window.ZVEZDNY_CONFIG || {});
 const TWITCH = {clientId: CONFIG.twitchClientId, channel: String(CONFIG.channel).toLowerCase(), scopes: []};
 const SUPABASE = {url: String(CONFIG.supabaseUrl).replace(/\/$/, ''), anonKey: CONFIG.supabaseAnonKey};
-const LIVE = !!(SUPABASE.url && SUPABASE.anonKey && TWITCH.clientId);
+const LIVE = !!(SUPABASE.url && SUPABASE.anonKey);
+const CHAT_AUTH = LIVE && !TWITCH.clientId; // без приложения Twitch: вход кодом в чате
+const ADMIN_KEY_LS = 'zvezdny-admin-key';
+let ADMIN_KEY = ''; try { ADMIN_KEY = localStorage.getItem(ADMIN_KEY_LS) || ''; } catch(e){}
+let ADMIN_OK = false; // ключ стримера подтверждён сервером
 const IMG = {"cry": "img/cry.webp", "oops": "img/oops.webp", "love": "img/love.webp", "smug": "img/smug.webp", "surf": "img/surf.webp", "sun": "img/sun.webp", "moon": "img/moon.webp", "gaze": "img/gaze.webp", "shades": "img/shades.webp", "bunny": "img/bunny.webp"};
 const STAR = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 7.3 4.7 11 6 7.3 7.3 6 11 4.7 7.3 1 6 4.7 4.7Z" fill="currentColor"/></svg>';
 const RAR = {
@@ -1232,14 +1236,15 @@ const AUTH_KEY = 'zvezdny-auth-v1';
 let USER = null; // {login, name, avatar, id, token, demo}
 const realAuth = () => !!TWITCH.clientId;
 const redirectUri = () => location.origin + location.pathname;
-const isStreamer = () => !!USER && USER.login === TWITCH.channel.toLowerCase();
+const isStreamer = () => ADMIN_OK || (!!USER && USER.login === TWITCH.channel.toLowerCase());
 const BUSY_STATES = ['tearing', 'auto', 'pull', 'waiting', 'opening'];
 
 function openLogin(reason){
   $('lgTxt').textContent = reason || 'Войди, чтобы открывать паки за баллы канала и собирать свою коллекцию.';
-  $('lgReal').hidden = !realAuth(); $('lgDemo').hidden = realAuth();
+  $('lgReal').hidden = !realAuth(); $('lgChat').hidden = !CHAT_AUTH; $('lgDemo').hidden = realAuth() || CHAT_AUTH;
+  if (CHAT_AUTH){ $('lgTitle').textContent = 'Вход через чат Twitch'; chatLoginReset(); }
   $('loginModal').hidden = false; document.body.style.overflow = 'hidden';
-  setTimeout(() => (realAuth() ? $('lgGo') : $('lgNick')).focus(), 50);
+  setTimeout(() => (CHAT_AUTH ? $('lgChatNick') : realAuth() ? $('lgGo') : $('lgNick')).focus(), 50);
 }
 function closeLogin(){ $('loginModal').hidden = true; if ($('modal').hidden) document.body.style.overflow = ''; }
 
@@ -1285,7 +1290,9 @@ function setUser(u){
 
 function renderUser(){
   const box = $('userbox');
-  if (!USER){
+  if (!USER && ADMIN_OK){
+    box.innerHTML = `<span class="uchip"><span class="ava">★</span><b>${TWITCH.channel}</b><span class="role">стример</span><button id="logout">Выйти</button></span>`;
+  } else if (!USER){
     box.innerHTML = `<button class="twbtn" data-login><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3 3.5 7v12h4v2.5h2.5l2.5-2.5h3.5l5-5V3H5Zm14.5 10-3 3h-4L10 18.5V16H6.5V5h13v8Z" fill="currentColor"/><path d="M15 7.5h2v5h-2zM10.5 7.5h2v5h-2z" fill="currentColor"/></svg>Войти через Twitch</button>`;
     $('nick').disabled = false;
   } else {
@@ -1299,10 +1306,12 @@ function renderUser(){
 
 async function logout(){
   if (BUSY_STATES.includes(packState)) return toast('Сначала доделай открытие пака');
+  if (ADMIN_OK){ ADMIN_OK = false; ADMIN_KEY = ''; try { localStorage.removeItem(ADMIN_KEY_LS); } catch(_){} if (!USER){ renderUser(); renderAdminGate(); return toast('Вышел из панели стримера'); } }
   const u = USER;
   if (u && !u.demo && realAuth()){ // отзываем токен у Twitch
     try { await fetch('https://id.twitch.tv/oauth2/revoke', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: new URLSearchParams({client_id: TWITCH.clientId, token: u.token})}); } catch(e){}
   }
+  if (LIVE && u && u.via === 'chat') api('logout').catch(() => {});
   setUser(null); toast('Ты вышел из аккаунта');
 }
 
@@ -1312,7 +1321,9 @@ function renderAdminGate(){
   $('admLockTxt').textContent = USER
     ? `Ты вошёл как ${USER.name}. Панель открывается только владельцу канала ${TWITCH.channel}.`
     : `Войди через Twitch-аккаунт канала ${TWITCH.channel}, чтобы добавлять карточки и настраивать шансы.`;
-  const lb = $('admLock').querySelector('[data-login]'); lb.lastChild.textContent = USER ? 'Войти аккаунтом канала' : 'Войти через Twitch';
+  const lb = $('admLock').querySelector('[data-login]'); lb.lastChild.textContent = CHAT_AUTH ? 'Войти через чат' : USER ? 'Войти аккаунтом канала' : 'Войти через Twitch';
+  $('admKeyRow').hidden = !LIVE;
+  if (LIVE && !ok) $('admLockTxt').textContent = `Войди ником канала ${TWITCH.channel} через чат или введи ключ стримера.`;
   if (ok) renderAdmin();
 }
 
@@ -1367,10 +1378,10 @@ $('lgNick').addEventListener('keydown', e => { if (e.key === 'Enter') demoLogin(
 // восстановление сессии
 (() => {
   let saved = null; try { saved = JSON.parse(localStorage.getItem(AUTH_KEY)); } catch(e){}
-  if (saved && (saved.demo ? !realAuth() : saved.exp > Date.now())){
+  if (saved && (saved.demo ? !realAuth() && !LIVE : saved.exp > Date.now() && (saved.via === 'chat') === CHAT_AUTH)){
     USER = saved; SKEY = KEY + ':' + saved.login;
     try { const l = JSON.parse(localStorage.getItem(SKEY)); if (l){ S = l; if (!S.first) S.first = {}; } } catch(e){}
-    if (!saved.demo) twitchFetchUser(saved.token).then(u => { USER = u; try { localStorage.setItem(AUTH_KEY, JSON.stringify(u)); } catch(_){} renderUser(); }).catch(() => { setUser(null); toast('Сессия Twitch истекла, войди снова'); });
+    if (!saved.demo && saved.via !== 'chat') twitchFetchUser(saved.token).then(u => { USER = u; try { localStorage.setItem(AUTH_KEY, JSON.stringify(u)); } catch(_){} renderUser(); }).catch(() => { setUser(null); toast('Сессия Twitch истекла, войди снова'); });
   }
   renderUser();
   handleOAuthReturn();
@@ -1388,17 +1399,19 @@ function sbHeaders(){
   return h;
 }
 async function api(action, payload = {}){
-  if (!USER || !USER.token) throw new Error('Войди через Twitch');
+  if ((!USER || !USER.token) && !ADMIN_KEY && !action.startsWith('login_')) throw new Error('Сначала войди');
+  const auth = !USER || !USER.token ? {} : USER.via === 'chat' ? {'x-session': USER.token} : {'x-twitch-token': USER.token};
+  if (ADMIN_KEY) auth['x-admin-key'] = ADMIN_KEY;
   let r;
   try {
     r = await fetch(`${SUPABASE.url}/functions/v1/api`, {
       method: 'POST',
-      headers: {...sbHeaders(), 'Content-Type': 'application/json', 'x-twitch-token': USER.token},
+      headers: {...sbHeaders(), 'Content-Type': 'application/json', ...auth},
       body: JSON.stringify({action, ...payload})
     });
   } catch(e){ throw new Error('Сервер недоступен, проверь интернет'); }
   const d = await r.json().catch(() => ({}));
-  if (r.status === 401){ setUser(null); openLogin('Сессия Twitch истекла — войди снова.'); }
+  if (r.status === 401 && USER){ setUser(null); openLogin('Сессия истекла — войди снова.'); }
   if (!r.ok) throw new Error(d.error || 'Ошибка сервера');
   return d;
 }
@@ -1410,7 +1423,7 @@ async function rest(path){
 async function liveLoadSet(){
   const [cards, sets] = await Promise.all([
     rest('cards?select=id,sort,name,flavor,rarity,img,tall&active=eq.true&order=sort.asc'),
-    rest('settings?select=odds,foil,pity,cost,reward_id&id=eq.1')
+    rest('settings?select=odds,foil,pity,cost,reward_id,bridge_seen_at&id=eq.1')
   ]);
   const s = sets[0] || {};
   CARDS = cards.map(c => ({id: c.id, name: c.name, flavor: c.flavor, r: c.rarity, img: c.img, tall: c.tall}));
@@ -1457,17 +1470,39 @@ async function pollFeed(first){
     });
   } catch(e){}
 }
+function bridgeOnline(){ return !!(LIVESET && LIVESET.bridge_seen_at) && Date.now() - Date.parse(LIVESET.bridge_seen_at) < 3 * 60 * 1000; }
+function overlayUrl(withKey){
+  const base = location.origin + location.pathname.replace(/[^/]*$/, '') + 'overlay.html';
+  return withKey && ADMIN_KEY ? `${base}?key=${encodeURIComponent(ADMIN_KEY)}` : base;
+}
 function renderLiveAdmin(){
   const box = $('admLive'); if (!box) return;
   box.hidden = !LIVE; if (!LIVE) return;
+  const bound = !!(LIVESET && LIVESET.reward_id);
+  if (CHAT_AUTH){
+    const online = bridgeOnline();
+    $('admLiveTxt').innerHTML = `
+      <b>Мост чата:</b> ${online ? '<span style="color:#5fd68a">на связи</span>' : '<span style="color:#ffb35c">не запущен</span>'} — это оверлей в OBS со ссылкой ниже. Пока он открыт, зрители входят по коду в чате и получают пакетики за награду.<br><br>
+      <b>Награда:</b> ${bound
+        ? `привязана. Каждая покупка «Звёздного пака» даёт зрителю пакетик.`
+        : `создай на Twitch награду <b>«Звёздный пак»</b> (Панель управления автора → Награды зрителей → Баллы канала → Управление наградами), включи <b>«Попросить зрителя ввести текст»</b>. Потом при запущенном оверлее купи её сам и напиши в поле: <b>привязать</b>.`}`;
+    $('admReward').hidden = true; $('admUnbind').hidden = !bound;
+    const obs = $('admObs');
+    obs.hidden = false;
+    obs.innerHTML = ADMIN_KEY
+      ? `<b>Ссылка для OBS со встроенным мостом</b> (никому не показывай — в ней ключ):<br><code id="obsKeyUrl">${overlayUrl(true).replace(/key=.*/, 'key=••••••••')}</code> <button class="cat" id="obsKeyCopy">Скопировать ссылку</button> <a class="cat" href="${overlayUrl(true)}&status=1" target="_blank" rel="noopener">Открыть во вкладке</a>`
+      : 'Чтобы получить ссылку для OBS с мостом, войди в панель по ключу стримера.';
+    $('obsKeyCopy')?.addEventListener('click', () => navigator.clipboard?.writeText(overlayUrl(true)).then(() => toast('Ссылка скопирована')).catch(() => toast('Не получилось скопировать')));
+    return;
+  }
   const hasScope = USER && (USER.scopes || []).includes('channel:manage:redemptions');
   $('admLiveTxt').innerHTML = !hasScope
     ? 'Чтобы создать награду на канале, войди заново с доступом к наградам: <button class="twbtn" data-login="streamer">Перевойти</button>'
-    : LIVESET && LIVESET.reward_id
+    : bound
       ? `Награда «Звёздный пак» подключена: каждая покупка за ${fmt(COST)} баллов даёт зрителю пакетик. Кнопка ниже обновит цену и подписку.`
       : 'Награды пока нет. Кнопка создаст на канале награду «Звёздный пак» и подпишет сервер на её покупки.';
   $('admReward').disabled = !hasScope;
-  $('admReward').textContent = LIVESET && LIVESET.reward_id ? 'Обновить награду на Twitch' : 'Создать награду «Звёздный пак»';
+  $('admReward').textContent = bound ? 'Обновить награду на Twitch' : 'Создать награду «Звёздный пак»';
 }
 async function liveBoot(){
   // интерфейс под настоящие пакетики
@@ -1486,6 +1521,8 @@ async function liveBoot(){
   try { await liveLoadSet(); } catch(e){ toast('Сервер недоступен: показываю стандартный набор'); }
   renderAll(); spawnPack();
   if (USER && !USER.demo) await liveMe();
+  if (ADMIN_KEY && !ADMIN_OK){ adminKeyLogin.silent = true; await adminKeyLogin(ADMIN_KEY).catch(() => {}); adminKeyLogin.silent = false; }
+  setInterval(async () => { if (!$('tab-admin').hidden && LIVE){ try { await liveLoadSet(); renderLiveAdmin(); } catch(_){} } }, 30000); // статус моста
   await pollFeed(true);
   setInterval(() => pollFeed(false), 4000);
   setInterval(() => { if (USER && !document.hidden && packState === 'sealed') liveMe(); }, 30000); // пакетики, купленные на стриме
@@ -1502,6 +1539,69 @@ $('admGrant')?.addEventListener('click', async () => {
   if (!login) return toast('Впиши ник зрителя');
   try { const d = await api('grant', {login, n}); toast(`Выдано: ${n}. Теперь у зрителя ${d.packs}`); if (USER && login.toLowerCase().replace(/^@/, '') === USER.login) liveMe(); }
   catch(err){ toast(err.message); }
+});
+
+
+/* ---------- вход через чат Twitch (без приложения) ---------- */
+let chatPoll = null;
+function chatLoginReset(){
+  clearInterval(chatPoll); chatPoll = null;
+  $('lgChatStart').hidden = false; $('lgChatCode').hidden = true;
+}
+async function chatLoginStart(){
+  const nick = $('lgChatNick').value.trim().replace(/^@/, '');
+  if (!/^[A-Za-z0-9_]{3,25}$/.test(nick)) return toast('Ник на Twitch — 3–25 символов: латиница, цифры, _');
+  $('lgChatGo').disabled = true;
+  try {
+    const d = await api('login_start', {login: nick});
+    const ch = d.channel || TWITCH.channel, cmd = `!пак ${d.code}`;
+    $('lgChatHow').innerHTML = `Напиши в чате канала <b>twitch.tv/${ch}</b> с аккаунта <b>${nick.replace(/[<>&"]/g, '')}</b>:`;
+    $('lgChatCmd').textContent = cmd;
+    $('lgChatOpen').href = `https://www.twitch.tv/popout/${ch}/chat`;
+    $('lgChatState').textContent = d.bridge_online ? 'Жду сообщение в чате… Код действует 10 минут.' : 'Сейчас мост чата не на связи (стрим не идёт?). Код подействует, как только стример включит оверлей — в течение 10 минут.';
+    $('lgChatStart').hidden = true; $('lgChatCode').hidden = false;
+    $('lgChatCopy').onclick = () => navigator.clipboard?.writeText(cmd).then(() => toast('Скопировано')).catch(() => {});
+    const t0 = Date.now();
+    clearInterval(chatPoll);
+    chatPoll = setInterval(async () => {
+      if ($('loginModal').hidden){ clearInterval(chatPoll); return; }
+      try {
+        const r = await api('login_poll', {request_id: d.request_id});
+        if (r.ok){
+          clearInterval(chatPoll); closeLogin();
+          const p = r.user || {};
+          setUser({login: p.login || nick.toLowerCase(), id: p.twitch_id, name: p.name || nick, avatar: p.avatar || '', token: r.token, via: 'chat', demo: false, exp: Date.now() + 59 * 864e5});
+          toast(`Привет, ${USER.name}!`);
+        } else if (r.expired || Date.now() - t0 > 10.5 * 60 * 1000){
+          clearInterval(chatPoll); $('lgChatState').textContent = 'Код истёк. Нажми «Другой ник» и получи новый.';
+        }
+      } catch(e){}
+    }, 2500);
+  } catch(e){ toast(e.message); }
+  $('lgChatGo').disabled = false;
+}
+$('lgChatGo').addEventListener('click', chatLoginStart);
+$('lgChatNick').addEventListener('keydown', e => { if (e.key === 'Enter') chatLoginStart(); });
+$('lgChatBack').addEventListener('click', chatLoginReset);
+
+/* ---------- панель по ключу стримера ---------- */
+async function adminKeyLogin(key){
+  ADMIN_KEY = key;
+  try {
+    const d = await api('me');
+    if (!d.is_streamer) throw new Error('Неверный ключ');
+    ADMIN_OK = true; try { localStorage.setItem(ADMIN_KEY_LS, key); } catch(_){}
+    if (d.profile) applyMe(d);
+    if (!adminKeyLogin.silent) toast('Панель стримера открыта'); renderUser(); renderAdminGate();
+  } catch(e){
+    ADMIN_KEY = ''; ADMIN_OK = false; try { localStorage.removeItem(ADMIN_KEY_LS); } catch(_){}
+    toast(e.message === 'no_session' || e.message === 'Сначала войди' ? 'Неверный ключ' : e.message);
+  }
+}
+$('admKeyGo').addEventListener('click', () => { const k = $('admKeyIn').value.trim(); if (k.length < 16) return toast('Ключ — от 16 символов'); adminKeyLogin(k); });
+$('admKeyIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('admKeyGo').click(); });
+$('admUnbind')?.addEventListener('click', async () => {
+  try { await api('reward_unbind'); await liveLoadSet(); renderLiveAdmin(); toast('Награда отвязана — привяжи новую'); } catch(e){ toast(e.message); }
 });
 
 if (LIVE) liveBoot(); else { renderAll(); spawnPack(); }
