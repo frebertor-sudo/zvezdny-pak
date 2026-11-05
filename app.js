@@ -343,7 +343,7 @@ function setTear(p){
   const cu = b.querySelector('.bcurl'), ch = b.querySelector('.bcurlhi');
   cu.style.background = g[0]; ch.style.background = g[1];
   cu.style.opacity = Math.min(1, p * 2.2); ch.style.opacity = Math.min(1, p * 1.6);
-  if (PH && dp > 0) PH.vth += (TEAR_SIDE === 'top' ? -1 : 1) * TEAR_DIR * dp * 260; // рывок раскачивает полоску
+  if (PH && dp > 0) PH.vth += (TEAR_SIDE === 'top' ? 1 : -1) * TEAR_DIR * dp * 260; // рывок отгибает полоску наружу
   const leak = b.querySelector('.leak');
   leak.querySelector('polyline').setAttribute('points', (tearSet ? trace : []).map(e => e.join(',')).join(' '));
   leak.style.opacity = p > 0 ? 1 : 0;
@@ -385,10 +385,10 @@ function makePhys(b){
       torn.style.transform = `translate(${S2.x.toFixed(1)}px,${S2.y.toFixed(1)}px) rotate(${S2.th.toFixed(1)}deg) rotateX(${(Math.sin(S2.t * 13) * 55).toFixed(1)}deg) rotateY(${(Math.cos(S2.t * 8) * 35).toFixed(1)}deg)`; // фольга трепыхается в полёте
       torn.style.opacity = Math.max(0, 1 - Math.max(0, S2.t - .5) * 1.6);
     } else if (tearP > 0){ // надорванная полоска висит маятником: свисает сильнее, чем больше оторвано
-      const target = up * TEAR_DIR * (6 + tearP * 30);
-      P.vth += (-(P.vtx - pvtx) / Math.max(dt, .001)) * .004 * up; // инерция при рывках пакета
+      const target = -up * TEAR_DIR * (6 + tearP * 30); // оторванный край отгибается от пакета: верхний — вверх, нижний — вниз
+      P.vth += (-(P.vtx - pvtx) / Math.max(dt, .001)) * .004 * -up; // инерция при рывках пакета
       [P.th, P.vth] = spring(P.th, P.vth, target, 55, 3.2, dt);
-      const peel = up * (8 + tearP * 34) + Math.sin(now / 260) * 2 * tearP; // полоска отгибается к зрителю и чуть дышит
+      const peel = up * (4 + tearP * 16) + Math.sin(now / 260) * 1.5 * tearP; // полоска отгибается к зрителю и чуть дышит
       torn.style.transform = `rotate(${P.th.toFixed(2)}deg) translate(${(-TEAR_DIR * tearP * 2).toFixed(2)}%, ${(up * tearP * 2.5).toFixed(2)}%) rotateX(${peel.toFixed(2)}deg)`;
     }
     requestAnimationFrame(loop);
