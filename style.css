@@ -115,6 +115,13 @@ main[hidden]{display:none}
 .booster.nope{animation:nope .4s}
 @keyframes nope{25%{translate:-8px 0}50%{translate:7px 0}75%{translate:-4px 0}}
 .bpart{position:absolute;inset:0;pointer-events:none}
+/* реалистичный разрыв: серебристый слой фольги по краю, тёмная щель внутрь пакета, тень и изгиб полоски */
+.btornw{position:absolute;inset:0;pointer-events:none;filter:drop-shadow(0 4px 3px rgba(0,0,0,.5)) drop-shadow(0 1px 1px rgba(0,0,0,.35));perspective:600px}
+.bfoil{position:absolute;inset:0;pointer-events:none;clip-path:polygon(0 0,0 0,0 0);
+  background:repeating-linear-gradient(90deg,#ffffff26 0 1px,transparent 1px 3px),linear-gradient(100deg,#f6f6fc,#aeb2c4 22%,#ffffff 41%,#8f94a8 63%,#eceef6 82%,#b8bccb)}
+.bgap{position:absolute;inset:0;pointer-events:none;clip-path:polygon(0 0,0 0,0 0);background:linear-gradient(180deg,#05020c,#1a0f33);opacity:.9}
+.bcurl{position:absolute;inset:0;pointer-events:none;opacity:0;mix-blend-mode:multiply}
+.bcurlhi{position:absolute;inset:0;pointer-events:none;opacity:0;mix-blend-mode:screen}
 .bface{position:absolute;inset:0;display:flex;flex-direction:column}
 .bseal{flex:0 0 6%;position:relative;
   background:repeating-linear-gradient(90deg,#ffffff55 0 1.5px,transparent 1.5px 4px),

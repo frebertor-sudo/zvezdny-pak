@@ -296,6 +296,23 @@ function piece(x0, x1){
     : `polygon(${line.map(pt).join(',')},${x1}% 100%,${x0}% 100%)`;
 }
 
+// стабильная «случайность» по координате: волокна разрыва не дрожат от кадра к кадру
+const jit = (x, k) => { const v = Math.sin(x * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };
+// полоска вдоль линии разрыва на отрезке x0..x1: dir = +1 вниз от линии, -1 вверх; w — ширина в % высоты
+function band(x0, x1, dir, w0, w1, k){
+  if (x1 - x0 < .3) return 'polygon(0 0,0 0,0 0)';
+  const yAt = x => { let best = tearEdge[0]; for (const e of tearEdge) if (Math.abs(e[0] - x) < Math.abs(best[0] - x)) best = e; return best[1]; };
+  const line = [[x0, yAt(x0)], ...tearEdge.filter(e => e[0] > x0 && e[0] < x1), [x1, yAt(x1)]];
+  const fine = []; // мелкие зубчики-волокна между точками линии
+  for (let i = 0; i < line.length; i++){
+    fine.push(line[i]);
+    if (i < line.length - 1){ const a = line[i], b = line[i + 1]; for (const f of [.33, .66]) fine.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]); }
+  }
+  const inner = fine.map(([x, y]) => [x, y - dir * .15]);
+  const outer = fine.map(([x, y]) => [x, y + dir * (w0 + (w1 - w0) * Math.pow(jit(x, k), 1.7))]).reverse();
+  return `polygon(${[...inner, ...outer].map(pt).join(',')})`;
+}
+
 function setTear(p){
   const dp = Math.max(0, Math.min(1, p)) - tearP;
   tearP = p = Math.max(0, Math.min(1, p));
@@ -314,6 +331,18 @@ function setTear(p){
   const torn = b.querySelector('.btorn');
   torn.style.clipPath = p > 0 ? piece(t0, t1) : 'polygon(0 0,0 0,0 0)';
   torn.style.transformOrigin = `${u}% ${TEAR_Y}%`;
+  // край разрыва: серебристый внутренний слой фольги на обеих сторонах и тёмная щель внутрь пакета
+  const down = TEAR_SIDE === 'top' ? 1 : -1; // в какую сторону от линии лежит сам пакет
+  b.querySelector('.bfoil.m').style.clipPath = p > 0 ? band(t0, t1, down, .35, 1.5, 1) : 'polygon(0 0,0 0,0 0)';
+  b.querySelector('.bgap').style.clipPath = p > 0 ? band(t0, t1, down, .9, 2.6, 2) : 'polygon(0 0,0 0,0 0)';
+  b.querySelector('.bfoil.t').style.clipPath = p > 0 ? band(t0, t1, -down, .3, 1.3, 3) : 'polygon(0 0,0 0,0 0)';
+  // изгиб: у линии надрыва полоска заламывается (тень), дальше ловит свет
+  const y = TEAR_Y, g = down > 0
+    ? [`linear-gradient(180deg,transparent ${y - 9}%,#0000 ${y - 5}%,#00000070 ${y - .5}%)`, `linear-gradient(180deg,transparent ${y - 8}%,#ffffff40 ${y - 4.5}%,transparent ${y - 2}%)`]
+    : [`linear-gradient(0deg,transparent ${100 - y - 9}%,#0000 ${100 - y - 5}%,#00000070 ${100 - y - .5}%)`, `linear-gradient(0deg,transparent ${100 - y - 8}%,#ffffff40 ${100 - y - 4.5}%,transparent ${100 - y - 2}%)`];
+  const cu = b.querySelector('.bcurl'), ch = b.querySelector('.bcurlhi');
+  cu.style.background = g[0]; ch.style.background = g[1];
+  cu.style.opacity = Math.min(1, p * 2.2); ch.style.opacity = Math.min(1, p * 1.6);
   if (PH && dp > 0) PH.vth += (TEAR_SIDE === 'top' ? -1 : 1) * TEAR_DIR * dp * 260; // рывок раскачивает полоску
   const leak = b.querySelector('.leak');
   leak.querySelector('polyline').setAttribute('points', (tearSet ? trace : []).map(e => e.join(',')).join(' '));
@@ -353,13 +382,14 @@ function makePhys(b){
     if (P.strip){ // оторванная полоска летит и кувыркается
       const S2 = P.strip; S2.t += dt;
       S2.vy += 2600 * dt; S2.x += S2.vx * dt; S2.y += S2.vy * dt; S2.th += S2.w * dt;
-      torn.style.transform = `translate(${S2.x.toFixed(1)}px,${S2.y.toFixed(1)}px) rotate(${S2.th.toFixed(1)}deg)`;
+      torn.style.transform = `translate(${S2.x.toFixed(1)}px,${S2.y.toFixed(1)}px) rotate(${S2.th.toFixed(1)}deg) rotateX(${(Math.sin(S2.t * 13) * 55).toFixed(1)}deg) rotateY(${(Math.cos(S2.t * 8) * 35).toFixed(1)}deg)`; // фольга трепыхается в полёте
       torn.style.opacity = Math.max(0, 1 - Math.max(0, S2.t - .5) * 1.6);
     } else if (tearP > 0){ // надорванная полоска висит маятником: свисает сильнее, чем больше оторвано
       const target = up * TEAR_DIR * (6 + tearP * 30);
       P.vth += (-(P.vtx - pvtx) / Math.max(dt, .001)) * .004 * up; // инерция при рывках пакета
       [P.th, P.vth] = spring(P.th, P.vth, target, 55, 3.2, dt);
-      torn.style.transform = `rotate(${P.th.toFixed(2)}deg) translate(${(-TEAR_DIR * tearP * 2).toFixed(2)}%, ${(up * tearP * 2.5).toFixed(2)}%)`;
+      const peel = up * (8 + tearP * 34) + Math.sin(now / 260) * 2 * tearP; // полоска отгибается к зрителю и чуть дышит
+      torn.style.transform = `rotate(${P.th.toFixed(2)}deg) translate(${(-TEAR_DIR * tearP * 2).toFixed(2)}%, ${(up * tearP * 2.5).toFixed(2)}%) rotateX(${peel.toFixed(2)}deg)`;
     }
     requestAnimationFrame(loop);
   };
@@ -383,7 +413,7 @@ function spawnPack(){
   b.className = 'booster drop idle'; b.id = 'booster';
   b.setAttribute('aria-label', 'Пакетик с карточкой: потяни верхний край вправо, чтобы открыть');
   const slices = [2, 4, 6, 8, 10, 12].map((z, i, a) => `<i class="bslice${i === a.length - 1 ? ' back' : ''}" style="clip-path:${FACE_CLIP};transform:translateZ(-${z}px)"></i>`).join('');
-  b.innerHTML = `<i class="bglow"></i><i class="bdropsh"></i>${slices}<div class="bpart bmain">${boosterFace()}</div><div class="bpart brest">${boosterFace()}</div><div class="bpart btorn">${boosterFace()}</div>
+  b.innerHTML = `<i class="bglow"></i><i class="bdropsh"></i>${slices}<div class="bpart bmain">${boosterFace()}<i class="bgap"></i><i class="bfoil m"></i></div><div class="bpart brest">${boosterFace()}</div><div class="btornw"><div class="bpart btorn">${boosterFace()}<i class="bcurl"></i><i class="bcurlhi"></i><i class="bfoil t"></i></div></div>
     <svg class="leak" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points=""/></svg><i class="tearguide"></i><i class="bdent" style="clip-path:${FACE_CLIP}"></i>
     <div class="bhint"><svg viewBox="0 0 24 24" style="animation-direction:reverse"><path d="M19 12H5M11 6l-6 6 6 6"/></svg><span>Рви в любом месте</span><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>`;
   st.insertBefore(b, st.querySelector('.shadow'));
