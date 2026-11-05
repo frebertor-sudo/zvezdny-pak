@@ -422,6 +422,8 @@ input[type=range]{accent-color:var(--vio);padding:0;border:0;background:none;box
 .obs-key code{color:var(--tea);word-break:break-all}
 .keyrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px;width:100%}
 .keyrow input{max-width:260px}
+.linkbtn{background:none;border:0;color:var(--soft,#c3d8ca);text-decoration:underline;cursor:pointer;font:inherit;font-size:14px;margin-top:10px;opacity:.8}
+.follow-res{font-size:14px;margin-top:8px}
 .claimbox{margin-top:18px;padding:16px;border-radius:16px;border:2px dashed #5fd68a;background:#5fd68a14;width:100%;max-width:520px}
 .claimbox h3{margin:0 0 6px}.claimbox .keyrow input{max-width:320px;flex:1}.claimbox .small{font-size:13px;opacity:.75;margin:8px 0 0}
 #obsLink code{font-size:.8rem;color:var(--tea);word-break:break-all}

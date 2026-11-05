@@ -1,6 +1,6 @@
 // Мост чата: overlay.html (в OBS у стримера) анонимно читает чат Twitch и пересылает сюда
 // коды входа и покупки награды «Звёздный пак». Принимаем только с ключом стримера.
-import { adminKeyOk, channelName, corsHeaders, db, HttpError, json, randomToken, sha256 } from "../_shared/common.ts";
+import { adminKeyOk, bridgeKeyOk, channelName, completeLogin, corsHeaders, db, HttpError, json } from "../_shared/common.ts";
 
 type Ev = { kind: "msg" | "reward"; user_id: string; login: string; name?: string; text?: string; msg_id: string; reward_id?: string };
 
@@ -8,7 +8,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   try {
     if (req.method !== "POST") throw new HttpError(405, "POST only");
-    if (!(await adminKeyOk(req, "x-bridge-key"))) throw new HttpError(403, "Неверный ключ стримера");
+    if (!(await bridgeKeyOk(req))) throw new HttpError(403, "Неверный ключ стримера");
     const CHANNEL = await channelName();
     const body = await req.json().catch(() => ({}));
     const events: Ev[] = Array.isArray(body.events) ? body.events.slice(0, 50) : [];
@@ -46,10 +46,7 @@ Deno.serve(async (req) => {
         .eq("login", login).eq("code", m[1]).is("verified_at", null).gt("expires_at", now)
         .order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (!l) continue;
-      await sb.rpc("add_packs", { p_uid: uid, p_login: login, p_name: name, p_n: 0 }); // создаём или обновляем профиль
-      const token = randomToken();
-      await sb.from("sessions").insert({ token_hash: await sha256(token), twitch_id: uid, login });
-      await sb.from("logins").update({ verified_at: now, twitch_id: uid, token }).eq("id", l.id);
+      if (!(await completeLogin(l.id, uid, login, name))) continue;
       out.logins++;
     }
     return json(req, out);

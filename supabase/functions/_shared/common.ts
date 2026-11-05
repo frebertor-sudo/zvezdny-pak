@@ -79,14 +79,14 @@ export function safeEqual(a: string, b: string) {
   return r === 0;
 }
 // Канал и ключ стримера: из секретов функции или из базы (задаются на сайте без панели Supabase).
-let _cfg: { channel: string; keyHash: string; at: number } | null = null;
+let _cfg: { channel: string; keyHash: string; bridgeKey: string; decapi: string; at: number } | null = null;
 export async function siteCfg(fresh = false) {
   if (!fresh && _cfg && Date.now() - _cfg.at < 30_000) return _cfg;
   const [{ data: s }, { data: a }] = await Promise.all([
     db().from("settings").select("channel").eq("id", 1).single(),
-    db().from("admin_secret").select("key_hash").eq("id", 1).maybeSingle(),
+    db().from("admin_secret").select("key_hash,bridge_key,decapi_token").eq("id", 1).maybeSingle(),
   ]);
-  _cfg = { channel: (CHANNEL || s?.channel || "").toLowerCase(), keyHash: a?.key_hash ?? "", at: Date.now() };
+  _cfg = { channel: (CHANNEL || s?.channel || "").toLowerCase(), keyHash: a?.key_hash ?? "", bridgeKey: a?.bridge_key ?? "", decapi: a?.decapi_token ?? "", at: Date.now() };
   return _cfg;
 }
 export async function channelName(): Promise<string> { return (await siteCfg()).channel; }
@@ -96,6 +96,30 @@ export async function adminKeyOk(req: Request, header = "x-admin-key"): Promise<
   if (ADMIN_KEY.length >= 16 && safeEqual(key, ADMIN_KEY)) return true;
   const { keyHash } = await siteCfg();
   return !!keyHash && safeEqual(await sha256("zvezdny:" + key), keyHash);
+}
+
+// Мост принимает ключ стримера или отдельный ключ из ссылки OBS.
+export async function bridgeKeyOk(req: Request): Promise<boolean> {
+  if (await adminKeyOk(req, "x-bridge-key")) return true;
+  const key = (req.headers.get("x-bridge-key") ?? "").trim();
+  const { bridgeKey } = await siteCfg();
+  return key.length >= 16 && safeEqual(key, bridgeKey);
+}
+
+// Фолловер ли зритель: decapi.me с токеном стримера. true/false, или null, если проверить не вышло.
+export let decapiLast = ""; // последний ответ decapi (для проверки в панели)
+export async function isFollower(channel: string, login: string): Promise<boolean | null> {
+  const { decapi } = await siteCfg();
+  if (!decapi) return null;
+  try {
+    const r = await fetch(`https://decapi.me/twitch/followed/${encodeURIComponent(channel)}/${encodeURIComponent(login)}?token=${encodeURIComponent(decapi)}&format=U`, { signal: AbortSignal.timeout(6000) });
+    const t = (await r.text()).trim();
+    decapiLast = t.slice(0, 200);
+    if (/^\d{9,}$/.test(t)) return true;
+    if (/(does not|doesn't|is not|not follow|cannot follow themself)/i.test(t)) return false;
+    console.error("decapi:", r.status, t.slice(0, 200));
+    return null;
+  } catch (e) { console.error("decapi fetch", e); return null; }
 }
 
 export async function sha256(s: string): Promise<string> {
@@ -120,4 +144,52 @@ export async function whoami(req: Request): Promise<SiteUser | null> {
   }
   if ((req.headers.get("x-twitch-token") ?? "").trim() && CLIENT_ID) return await twitchUser(req);
   return null;
+}
+
+// ---------- чат Twitch: анонимное чтение (как гость) ----------
+export function ircTags(raw: string): Record<string, string> {
+  const o: Record<string, string> = {};
+  for (const kv of raw.split(";")) { const i = kv.indexOf("="); o[kv.slice(0, i)] = kv.slice(i + 1).replace(/\\s/g, " "); }
+  return o;
+}
+// Ждём в чате канала сообщение от login с кодом. Возвращает id и имя зрителя (из тегов Twitch) или null.
+export function waitChatCode(channel: string, login: string, code: string, ms: number): Promise<{ uid: string; name: string } | null> {
+  return new Promise((resolve) => {
+    let done = false, ws: WebSocket;
+    const finish = (v: { uid: string; name: string } | null) => {
+      if (done) return; done = true; clearTimeout(t);
+      try { ws.close(); } catch (_) { /* уже закрыт */ }
+      resolve(v);
+    };
+    const t = setTimeout(() => finish(null), ms);
+    try { ws = new WebSocket("wss://irc-ws.chat.twitch.tv:443"); } catch (_) { return finish(null); }
+    ws.onopen = () => {
+      ws.send("CAP REQ :twitch.tv/tags");
+      ws.send("PASS SCHMOOPIIE");
+      ws.send("NICK justinfan" + (10000 + Math.floor(Math.random() * 80000)));
+      ws.send("JOIN #" + channel);
+    };
+    ws.onmessage = (e) => {
+      for (const line of String(e.data).split("\r\n")) {
+        if (line.startsWith("PING")) { ws.send("PONG :tmi.twitch.tv"); continue; }
+        const m = /^@(\S+) :([^!]+)!\S+ PRIVMSG #\S+ :(.*)$/.exec(line);
+        if (!m || m[2].toLowerCase() !== login || !m[3].includes(code)) continue;
+        const tg = ircTags(m[1]);
+        if (tg["user-id"]) finish({ uid: tg["user-id"], name: (tg["display-name"] || login).slice(0, 40) });
+      }
+    };
+    ws.onerror = () => finish(null);
+    ws.onclose = () => finish(null);
+  });
+}
+// Подтверждаем вход: создаём профиль и сессию. Возвращает токен или null, если вход уже подтверждён.
+export async function completeLogin(loginId: string, uid: string, login: string, name: string): Promise<string | null> {
+  const sb = db();
+  const token = randomToken();
+  const { data } = await sb.from("logins").update({ verified_at: new Date().toISOString(), twitch_id: uid, token })
+    .eq("id", loginId).is("verified_at", null).select("id");
+  if (!data?.length) return null;
+  await sb.rpc("add_packs", { p_uid: uid, p_login: login, p_name: name, p_n: 0 }); // создаём или обновляем профиль
+  await sb.from("sessions").insert({ token_hash: await sha256(token), twitch_id: uid, login });
+  return token;
 }

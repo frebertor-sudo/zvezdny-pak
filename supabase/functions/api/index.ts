@@ -1,7 +1,7 @@
 // Единая точка API сайта. Запросы подтверждаются сессией сайта (x-session), токеном Twitch (x-twitch-token) или ключом стримера (x-admin-key).
 import {
   adminKeyOk, appToken, channelName, CLIENT_ID, corsHeaders, db, EVENTSUB_SECRET, HttpError, json, sha256, SUPABASE_URL,
-  type SiteUser, siteCfg, whoami,
+  completeLogin, decapiLast, isFollower, randomToken, type SiteUser, siteCfg, waitChatCode, whoami,
 } from "../_shared/common.ts";
 type TwitchUser = SiteUser;
 
@@ -33,6 +33,18 @@ let CHANNEL = ""; // логин канала (обновляется на каж
 function requireStreamer(u: TwitchUser | null, admin = false) {
   if (admin) return; // запрос пришёл с ключом стримера
   if (!u || !CHANNEL || u.login !== CHANNEL) throw new HttpError(403, "Только для стримера канала");
+}
+// «Только фолловеры»: проверяем фоллоу через decapi, удачную проверку помним час.
+async function requireFollower(u: TwitchUser) {
+  const sb = db();
+  const { data: s } = await sb.from("settings").select("follow_only").eq("id", 1).single();
+  if (!s?.follow_only || u.login === CHANNEL) return;
+  const { data: p } = await sb.from("profiles").select("follow_ok_at").eq("twitch_id", u.id).maybeSingle();
+  if (p?.follow_ok_at && Date.now() - Date.parse(p.follow_ok_at) < 60 * 60 * 1000) return;
+  const f = await isFollower(CHANNEL, u.login);
+  if (f === true) { await sb.from("profiles").update({ follow_ok_at: new Date().toISOString() }).eq("twitch_id", u.id); return; }
+  if (f === false) throw new HttpError(403, `Паки открывают только фолловеры: нажми «Отслеживать» на twitch.tv/${CHANNEL} и попробуй ещё раз`);
+  throw new HttpError(503, "Не получилось проверить фоллоу, попробуй через минуту");
 }
 function requireUser(u: TwitchUser | null): TwitchUser {
   if (!u) throw new HttpError(401, "no_session");
@@ -134,7 +146,7 @@ Deno.serve(async (req) => {
       if (!s?.claim_until || Date.parse(s.claim_until) < Date.now()) throw new HttpError(403, "Окно для задания ключа закрыто");
       const { keyHash } = await siteCfg(true);
       if (keyHash) throw new HttpError(409, "Ключ уже задан");
-      const { error } = await sb.from("admin_secret").insert({ id: 1, key_hash: await sha256("zvezdny:" + key) });
+      const { error } = await sb.from("admin_secret").upsert({ id: 1, key_hash: await sha256("zvezdny:" + key) });
       if (error) throw new HttpError(409, "Ключ уже задан");
       await sb.from("settings").update({ claim_until: null }).eq("id", 1);
       await siteCfg(true);
@@ -156,8 +168,16 @@ Deno.serve(async (req) => {
       return json(req, { request_id: data.id, code, channel: CHANNEL, expires_at: data.expires_at, bridge_online: online });
     }
     if (body.action === "login_poll") {
-      const { data: l } = await sb.from("logins").select("login,verified_at,expires_at,token,twitch_id").eq("id", String(body.request_id)).maybeSingle();
+      const rid = String(body.request_id);
+      let { data: l } = await sb.from("logins").select("login,code,verified_at,expires_at,token,twitch_id").eq("id", rid).maybeSingle();
       if (!l) throw new HttpError(404, "Попытка входа не найдена");
+      // долгое ожидание: сервер сам слушает чат канала, мост в OBS для входа не нужен
+      if (body.wait && !l.verified_at && Date.parse(l.expires_at) > Date.now() && CHANNEL) {
+        const hit = await waitChatCode(CHANNEL, l.login, l.code, 22_000);
+        if (hit) await completeLogin(rid, hit.uid, l.login, hit.name);
+        ({ data: l } = await sb.from("logins").select("login,code,verified_at,expires_at,token,twitch_id").eq("id", rid).maybeSingle());
+        if (!l) throw new HttpError(404, "Попытка входа не найдена");
+      }
       if (l.verified_at && l.token) {
         await sb.from("logins").update({ token: null }).eq("id", String(body.request_id)); // токен отдаём один раз
         const { data: p } = await sb.from("profiles").select("twitch_id,login,name,avatar").eq("twitch_id", l.twitch_id).maybeSingle();
@@ -192,6 +212,7 @@ Deno.serve(async (req) => {
         return json(req, { ...(await profileWithCollection(u.id)), is_streamer: ADMIN || u.login === CHANNEL, scopes: u.scopes });
       }
       case "open": {
+        await requireFollower(u);
         const { data, error } = await sb.rpc("open_pack", { p_uid: u.id });
         rpcError(error);
         return json(req, { result: data, ...(await profileWithCollection(u.id)) });
@@ -261,6 +282,38 @@ Deno.serve(async (req) => {
       case "reward_setup":
         if (!CLIENT_ID || !u) throw new HttpError(400, "Без приложения Twitch награду создают вручную на Twitch");
         return json(req, await setupReward(u));
+      case "bridge_key": { // ключ для ссылки OBS: создаём при первом запросе
+        requireStreamer(u, ADMIN);
+        let { bridgeKey } = await siteCfg(true);
+        if (!bridgeKey || body.rotate) {
+          bridgeKey = randomToken(18);
+          const { error } = await sb.from("admin_secret").upsert({ id: 1, bridge_key: bridgeKey });
+          if (error) throw new HttpError(500, "Не удалось создать ключ для OBS");
+          await siteCfg(true);
+        }
+        return json(req, { key: bridgeKey });
+      }
+      case "follow_save": { // паки только для фолловеров + токен decapi.me
+        requireStreamer(u, ADMIN);
+        const token = String(body.token ?? "").trim();
+        if (token) {
+          if (!/^[A-Za-z0-9_\-.]{8,200}$/.test(token)) throw new HttpError(400, "Это не похоже на токен decapi");
+          await sb.from("admin_secret").upsert({ id: 1, decapi_token: token });
+        }
+        const cfg = await siteCfg(true);
+        const followOnly = !!body.follow_only;
+        if (followOnly && !cfg.decapi) throw new HttpError(400, "Сначала вставь токен decapi");
+        await sb.from("settings").update({ follow_only: followOnly }).eq("id", 1);
+        return json(req, { ok: true, has_token: !!cfg.decapi });
+      }
+      case "follow_test": {
+        requireStreamer(u, ADMIN);
+        const login = String(body.login ?? "").trim().toLowerCase().replace(/^@/, "");
+        if (!LOGIN_RE.test(login)) throw new HttpError(400, "Впиши ник зрителя");
+        const { decapi } = await siteCfg(true);
+        const follows = await isFollower(CHANNEL, login);
+        return json(req, { has_token: !!decapi, follows, detail: follows === null ? decapiLast : "" });
+      }
       case "reward_unbind": // отвязать награду, чтобы привязать другую
         await sb.from("settings").update({ reward_id: null }).eq("id", 1);
         return json(req, { ok: true });
