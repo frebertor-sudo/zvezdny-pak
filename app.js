@@ -230,6 +230,7 @@ const TIER = {common:0, rare:1, epic:2, legendary:3};
 
 /* ---------- пакетик: появление, надрыв, открытие ---------- */
 let TEAR_Y = 12, TEAR_DIR = 1, TEAR_SIDE = 'top', tearSet = false; // где и куда рвём
+document.addEventListener('dragstart', e => e.preventDefault()); // без нативного перетаскивания картинок
 let packState = 'sealed', pending = null, tearP = 0, tearEdge = [];
 
 function zigEdge(y, amp, n, dir){ // зубчики по краю шва

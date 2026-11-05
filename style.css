@@ -150,6 +150,9 @@ main[hidden]{display:none}
   -webkit-mask-image:radial-gradient(circle at var(--px,50%) var(--py,50%),#000 0,#000 9%,transparent 26%);mask-image:radial-gradient(circle at var(--px,50%) var(--py,50%),#000 0,#000 9%,transparent 26%)}
 .booster.pressed .bdent{opacity:1}
 .pullmask{position:absolute;inset:0;z-index:1;pointer-events:none}
+/* браузер не тащит картинки «призраком» — карточки и пакет двигаем только мы */
+img,svg{-webkit-user-drag:none;user-drag:none;-webkit-user-select:none;user-select:none}
+#stage,#stage *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .pullmask .flip{pointer-events:auto}
 .stagewrap.pulling{cursor:grab;touch-action:none}.stagewrap.pulling.grab{cursor:grabbing}
 .stagewrap.pulling .flip{cursor:grab}
