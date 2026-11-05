@@ -574,7 +574,7 @@ function bindBooster(b){
         if (sp > 2200 && now - lastRustle > 60){ lastRustle = now; rustle(.9, .1); } // трясут — фольга шумит сильнее
       }
       b._lx = e.clientX; b._ly = e.clientY; b._lt = now;
-      b.querySelectorAll('.bsheen').forEach(s => s.style.setProperty('--mx', (50 - x * 120) + '%'));
+      if (!LOWFX) b.querySelectorAll('.bsheen').forEach(s => s.style.setProperty('--mx', (50 - x * 120) + '%'));
       const g = b.querySelector('.tearguide'); g.style.top = Math.max(9, Math.min(91, (y + .5) * 100)) + '%'; g.style.opacity = .7;
       return;
     }
@@ -594,8 +594,9 @@ function bindBooster(b){
     const along = dx * TEAR_DIR, dist = Math.hypot(dx, dy) * .8;
     const p = Math.max(tearP, drag.p0 + Math.max(along, dist) / (drag.w * .85));
     if (p > tearP + .02){ PH.tTx *= .6; PH.vtx -= TEAR_DIR * 40; } // фольга поддалась — натяжение отпускает
-    setTear(p);
-    if (p >= 1){ release(); finishTear(); }
+    if (p >= 1){ setTear(p); release(); finishTear(); }
+    else if (!drag.raf){ drag.raf = requestAnimationFrame(() => { if (drag) drag.raf = 0; if (packState === 'tearing') setTear(Math.max(tearP, drag ? drag.pNext : p)); }); }
+    if (drag) drag.pNext = p;
   });
   const release = () => { drag = null; b.classList.remove('grabbing', 'pressed'); PH.sT = 0; PH.tTx = PH.tTy = PH.tRz = 0; };
   const up = () => {

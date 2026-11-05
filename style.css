@@ -161,6 +161,10 @@ main[hidden]{display:none}
    Оставляем тот же вид, но без тяжёлых сочетаний: пакет плоский (без слоёв толщины), без blend и backdrop внутри поворотов */
 .lowfx .booster{transform-style:flat}
 .lowfx .stagewrap{perspective:none}
+/* то, что перерисовывается при каждом движении пальца, на телефоне убираем; части пакета рисуются один раз и дальше только обрезаются */
+.lowfx .bsheen,.lowfx .bdent,.lowfx .bbody::before{display:none}
+.lowfx .bpart{will-change:transform;contain:paint}
+.lowfx .leak{filter:drop-shadow(0 0 4px #fff) drop-shadow(0 0 10px var(--lc,#fff))}
 .lowfx .booster.idle{animation:bsway2 7s ease-in-out infinite}
 .lowfx .booster.drop.idle{animation:bdrop .7s cubic-bezier(.2,1.3,.4,1) backwards,bsway2 7s ease-in-out .7s infinite}
 @keyframes bsway2{0%,100%{rotate:-1.2deg;translate:0 0}50%{rotate:1.2deg;translate:0 -7px}}
@@ -175,7 +179,7 @@ main[hidden]{display:none}
 .lowfx .bcurl{opacity:.6}
 .lowfx .btornw{filter:none;perspective:none}
 .lowfx .btorn{filter:drop-shadow(0 3px 2px #0008)}
-.lowfx .blogo b{filter:drop-shadow(0 3px 0 #2a1454)}
+.lowfx .blogo b{filter:none}
 .lowfx .edge:nth-child(odd){filter:none}
 .lowfx .flip .back svg,.lowfx .cback svg{filter:none}
 .lowfx .flip .back::after,.lowfx .card .gloss{mix-blend-mode:normal;opacity:.25}
