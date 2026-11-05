@@ -232,7 +232,8 @@ const TIER = {common:0, rare:1, epic:2, legendary:3};
 let TEAR_Y = 12, TEAR_DIR = 1, TEAR_SIDE = 'top', tearSet = false; // где и куда рвём
 document.addEventListener('dragstart', e => e.preventDefault());
 // лёгкий режим отрисовки для сенсорных телефонов (?fx=full — принудительно полный, ?fx=low — лёгкий)
-(() => { const q = new URLSearchParams(location.search).get('fx'); const low = q ? q === 'low' : matchMedia('(pointer: coarse)').matches; document.documentElement.classList.toggle('lowfx', low); })(); // без нативного перетаскивания картинок
+(() => { const q = new URLSearchParams(location.search).get('fx'); const low = q ? q === 'low' : matchMedia('(pointer: coarse)').matches; document.documentElement.classList.toggle('lowfx', low); })();
+const LOWFX = document.documentElement.classList.contains('lowfx'); // без нативного перетаскивания картинок
 let packState = 'sealed', pending = null, tearP = 0, tearEdge = [];
 
 function zigEdge(y, amp, n, dir){ // зубчики по краю шва
@@ -332,6 +333,7 @@ function setTear(p){
   b.querySelector('.brest').style.clipPath = piece(r0, r1);
   const torn = b.querySelector('.btorn');
   torn.style.clipPath = p > 0 ? piece(t0, t1) : 'polygon(0 0,0 0,0 0)';
+  torn.parentElement.style.visibility = p > 0 ? '' : 'hidden'; // пустой слой не держим в памяти
   torn.style.transformOrigin = `${u}% ${TEAR_Y}%`;
   // край разрыва: серебристый внутренний слой фольги на обеих сторонах и тёмная щель внутрь пакета
   const down = TEAR_SIDE === 'top' ? 1 : -1; // в какую сторону от линии лежит сам пакет
@@ -378,18 +380,20 @@ function makePhys(b){
       if (op <= 0){ b.remove(); return; }
     }
     P.s += (P.sT - P.s) * Math.min(1, dt * 18);
-    b.style.transform = `translate3d(${P.tx.toFixed(2)}px,${P.ty.toFixed(2)}px,0) rotateX(${P.rx.toFixed(2)}deg) rotateY(${P.ry.toFixed(2)}deg) rotateZ(${P.rz.toFixed(2)}deg) scale(${1 - .025 * P.s},${1 - .015 * P.s})`;
+    b.style.transform = LOWFX // на телефоне без 3D: иначе Android теряет слои и картинка мигает
+      ? `translate(${P.tx.toFixed(2)}px,${P.ty.toFixed(2)}px) rotate(${(P.rz + P.ry * .15).toFixed(2)}deg) scale(${(1 - .025 * P.s).toFixed(4)},${(1 - .015 * P.s).toFixed(4)})`
+      : `translate3d(${P.tx.toFixed(2)}px,${P.ty.toFixed(2)}px,0) rotateX(${P.rx.toFixed(2)}deg) rotateY(${P.ry.toFixed(2)}deg) rotateZ(${P.rz.toFixed(2)}deg) scale(${1 - .025 * P.s},${1 - .015 * P.s})`;
     const torn = b.querySelector('.btorn'), up = TEAR_SIDE === 'top' ? -1 : 1;
     if (P.strip){ // оторванная полоска летит и кувыркается
       const S2 = P.strip; S2.t += dt;
       S2.vy += 2600 * dt; S2.x += S2.vx * dt; S2.y += S2.vy * dt; S2.th += S2.w * dt;
-      torn.style.transform = `translate(${S2.x.toFixed(1)}px,${S2.y.toFixed(1)}px) rotate(${S2.th.toFixed(1)}deg) rotateX(${(Math.sin(S2.t * 13) * 55).toFixed(1)}deg) rotateY(${(Math.cos(S2.t * 8) * 35).toFixed(1)}deg)`; // фольга трепыхается в полёте
+      torn.style.transform = `translate(${S2.x.toFixed(1)}px,${S2.y.toFixed(1)}px) rotate(${S2.th.toFixed(1)}deg)` + (LOWFX ? ` scale(1,${Math.abs(Math.sin(S2.t * 13) * .6 + .4).toFixed(3)})` : ` rotateX(${(Math.sin(S2.t * 13) * 55).toFixed(1)}deg) rotateY(${(Math.cos(S2.t * 8) * 35).toFixed(1)}deg)`); // фольга трепыхается в полёте
       torn.style.opacity = Math.max(0, 1 - Math.max(0, S2.t - .5) * 1.6);
     } else if (tearP > 0){ // надорванная полоска висит маятником: свисает сильнее, чем больше оторвано
       const target = -up * TEAR_DIR * (1 + tearP * 7); // жёсткая фольга: не висит, а чуть отгибается от пакета по мере разрыва
       [P.th, P.vth] = spring(P.th, P.vth, target, 220, 30, dt); // тугая пружина без раскачки
       const peel = up * (2 + tearP * 10); // полоска отгибается к зрителю и чуть дышит
-      torn.style.transform = `rotate(${P.th.toFixed(2)}deg) translate(${(-TEAR_DIR * tearP * 2).toFixed(2)}%, ${(up * tearP * 2.5).toFixed(2)}%) rotateX(${peel.toFixed(2)}deg)`;
+      torn.style.transform = `rotate(${P.th.toFixed(2)}deg) translate(${(-TEAR_DIR * tearP * 2).toFixed(2)}%, ${(up * tearP * 2.5).toFixed(2)}%)` + (LOWFX ? '' : ` rotateX(${peel.toFixed(2)}deg)`);
     }
     requestAnimationFrame(loop);
   };

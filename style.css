@@ -160,6 +160,12 @@ main[hidden]{display:none}
 /* ---------- телефоны: Chrome на Android мерцает, когда размытие и режимы наложения живут внутри 3D-слоёв ----------
    Оставляем тот же вид, но без тяжёлых сочетаний: пакет плоский (без слоёв толщины), без blend и backdrop внутри поворотов */
 .lowfx .booster{transform-style:flat}
+.lowfx .stagewrap{perspective:none}
+.lowfx .booster.idle{animation:bsway2 7s ease-in-out infinite}
+.lowfx .booster.drop.idle{animation:bdrop .7s cubic-bezier(.2,1.3,.4,1) backwards,bsway2 7s ease-in-out .7s infinite}
+@keyframes bsway2{0%,100%{rotate:-1.2deg;translate:0 0}50%{rotate:1.2deg;translate:0 -7px}}
+.lowfx .edge{display:none}
+.lowfx .flip .inner{box-shadow:none}
 .lowfx .bslice:not(.back){display:none}
 .lowfx .bslice.back{transform:translate(3px,4px)!important;opacity:.9}
 .lowfx .bdropsh{transform:translateY(18px);filter:none;background:radial-gradient(closest-side,#000c,#0000);opacity:.8}
