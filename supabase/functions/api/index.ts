@@ -1,7 +1,7 @@
 // Единая точка API сайта. Запросы подтверждаются сессией сайта (x-session), токеном Twitch (x-twitch-token) или ключом стримера (x-admin-key).
 import {
-  adminKeyOk, appToken, CHANNEL, CLIENT_ID, corsHeaders, db, EVENTSUB_SECRET, HttpError, json, sha256, SUPABASE_URL,
-  type SiteUser, whoami,
+  adminKeyOk, appToken, channelName, CLIENT_ID, corsHeaders, db, EVENTSUB_SECRET, HttpError, json, sha256, SUPABASE_URL,
+  type SiteUser, siteCfg, whoami,
 } from "../_shared/common.ts";
 type TwitchUser = SiteUser;
 
@@ -29,6 +29,7 @@ function rpcError(e: { message?: string } | null) {
   throw new HttpError(code ? 409 : 500, code ? ERR_TEXT[code] : "Ошибка базы");
 }
 
+let CHANNEL = ""; // логин канала (обновляется на каждый запрос из секретов или базы)
 function requireStreamer(u: TwitchUser | null, admin = false) {
   if (admin) return; // запрос пришёл с ключом стримера
   if (!u || !CHANNEL || u.login !== CHANNEL) throw new HttpError(403, "Только для стримера канала");
@@ -122,7 +123,23 @@ Deno.serve(async (req) => {
     if (req.method !== "POST") throw new HttpError(405, "POST only");
     const body = await req.json().catch(() => ({}));
     const sb = db();
-    const ADMIN = adminKeyOk(req);
+    CHANNEL = await channelName();
+    const ADMIN = await adminKeyOk(req);
+
+    // ---------- первый запуск: стример задаёт ключ на сайте, пока открыто окно ----------
+    if (body.action === "admin_claim") {
+      const key = String(body.key ?? "").trim();
+      if (key.length < 16 || key.length > 200) throw new HttpError(400, "Ключ — от 16 символов");
+      const { data: s } = await sb.from("settings").select("claim_until").eq("id", 1).single();
+      if (!s?.claim_until || Date.parse(s.claim_until) < Date.now()) throw new HttpError(403, "Окно для задания ключа закрыто");
+      const { keyHash } = await siteCfg(true);
+      if (keyHash) throw new HttpError(409, "Ключ уже задан");
+      const { error } = await sb.from("admin_secret").insert({ id: 1, key_hash: await sha256("zvezdny:" + key) });
+      if (error) throw new HttpError(409, "Ключ уже задан");
+      await sb.from("settings").update({ claim_until: null }).eq("id", 1);
+      await siteCfg(true);
+      return json(req, { ok: true });
+    }
 
     // ---------- вход через чат: без авторизации ----------
     if (body.action === "login_start") {

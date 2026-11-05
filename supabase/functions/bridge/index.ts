@@ -1,6 +1,6 @@
 // Мост чата: overlay.html (в OBS у стримера) анонимно читает чат Twitch и пересылает сюда
 // коды входа и покупки награды «Звёздный пак». Принимаем только с ключом стримера.
-import { adminKeyOk, CHANNEL, corsHeaders, db, HttpError, json, randomToken, sha256 } from "../_shared/common.ts";
+import { adminKeyOk, channelName, corsHeaders, db, HttpError, json, randomToken, sha256 } from "../_shared/common.ts";
 
 type Ev = { kind: "msg" | "reward"; user_id: string; login: string; name?: string; text?: string; msg_id: string; reward_id?: string };
 
@@ -8,7 +8,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   try {
     if (req.method !== "POST") throw new HttpError(405, "POST only");
-    if (!adminKeyOk(req, "x-bridge-key")) throw new HttpError(403, "Неверный ключ стримера");
+    if (!(await adminKeyOk(req, "x-bridge-key"))) throw new HttpError(403, "Неверный ключ стримера");
+    const CHANNEL = await channelName();
     const body = await req.json().catch(() => ({}));
     const events: Ev[] = Array.isArray(body.events) ? body.events.slice(0, 50) : [];
     const sb = db();

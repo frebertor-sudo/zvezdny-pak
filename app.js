@@ -1324,7 +1324,14 @@ function renderAdminGate(){
   const lb = $('admLock').querySelector('[data-login]'); lb.lastChild.textContent = CHAT_AUTH ? 'Войти через чат' : USER ? 'Войти аккаунтом канала' : 'Войти через Twitch';
   $('admKeyRow').hidden = !LIVE;
   if (LIVE && !ok) $('admLockTxt').textContent = `Войди ником канала ${TWITCH.channel} через чат или введи ключ стримера.`;
+  renderClaim(ok);
   if (ok) renderAdmin();
+}
+function claimOpen(){ return LIVE && LIVESET && LIVESET.claim_until && Date.parse(LIVESET.claim_until) > Date.now(); }
+function renderClaim(ok){
+  const open = !ok && claimOpen();
+  $('admClaim').hidden = !open;
+  if (open){ const m = Math.max(1, Math.round((Date.parse(LIVESET.claim_until) - Date.now()) / 60000)); $('clLeft').textContent = `Окно открыто ещё ~${m} мин.`; }
 }
 
 function demoLogin(asStreamer){
@@ -1399,7 +1406,7 @@ function sbHeaders(){
   return h;
 }
 async function api(action, payload = {}){
-  if ((!USER || !USER.token) && !ADMIN_KEY && !action.startsWith('login_')) throw new Error('Сначала войди');
+  if ((!USER || !USER.token) && !ADMIN_KEY && !action.startsWith('login_') && action !== 'admin_claim') throw new Error('Сначала войди');
   const auth = !USER || !USER.token ? {} : USER.via === 'chat' ? {'x-session': USER.token} : {'x-twitch-token': USER.token};
   if (ADMIN_KEY) auth['x-admin-key'] = ADMIN_KEY;
   let r;
@@ -1423,13 +1430,14 @@ async function rest(path){
 async function liveLoadSet(){
   const [cards, sets] = await Promise.all([
     rest('cards?select=id,sort,name,flavor,rarity,img,tall&active=eq.true&order=sort.asc'),
-    rest('settings?select=odds,foil,pity,cost,reward_id,bridge_seen_at&id=eq.1')
+    rest('settings?select=odds,foil,pity,cost,reward_id,bridge_seen_at,channel,claim_until&id=eq.1')
   ]);
   const s = sets[0] || {};
   CARDS = cards.map(c => ({id: c.id, name: c.name, flavor: c.flavor, r: c.rarity, img: c.img, tall: c.tall}));
   renumber();
   Object.keys(RAR).forEach(r => RAR[r].w = s.odds && s.odds[r] != null ? +s.odds[r] : RAR[r].w);
   FOIL = (s.foil ?? 12) / 100; PITY = s.pity || 10; COST = s.cost || 5000; LIVESET = s;
+  if (s.channel) TWITCH.channel = s.channel;
 }
 async function liveReload(){
   try { await liveLoadSet(); } catch(e){ toast(e.message); }
@@ -1599,6 +1607,21 @@ async function adminKeyLogin(key){
   }
 }
 $('admKeyGo').addEventListener('click', () => { const k = $('admKeyIn').value.trim(); if (k.length < 16) return toast('Ключ — от 16 символов'); adminKeyLogin(k); });
+$('clGen').addEventListener('click', () => {
+  const w = ['лес','луна','звезда','мох','сова','папоротник','светлячок','роса','шишка','туман'];
+  const b = crypto.getRandomValues(new Uint32Array(4));
+  $('clKey').value = [...b].slice(0, 3).map(x => w[x % w.length]).join('-') + '-' + (b[3] % 9000 + 1000);
+});
+$('clGo').addEventListener('click', async () => {
+  const k = $('clKey').value.trim();
+  if (k.length < 16) return toast('Ключ — от 16 символов');
+  try { await api('admin_claim', {key: k}); }
+  catch(e){ return toast(e.message); }
+  if (LIVESET) LIVESET.claim_until = null;
+  $('clKey').value = '';
+  await adminKeyLogin(k);
+  toast('Ключ сохранён. Запиши его!');
+});
 $('admKeyIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('admKeyGo').click(); });
 $('admUnbind')?.addEventListener('click', async () => {
   try { await api('reward_unbind'); await liveLoadSet(); renderLiveAdmin(); toast('Награда отвязана — привяжи новую'); } catch(e){ toast(e.message); }

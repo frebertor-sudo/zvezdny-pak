@@ -78,8 +78,25 @@ export function safeEqual(a: string, b: string) {
   for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return r === 0;
 }
-export const adminKeyOk = (req: Request, header = "x-admin-key") =>
-  ADMIN_KEY.length >= 16 && safeEqual((req.headers.get(header) ?? "").trim(), ADMIN_KEY);
+// Канал и ключ стримера: из секретов функции или из базы (задаются на сайте без панели Supabase).
+let _cfg: { channel: string; keyHash: string; at: number } | null = null;
+export async function siteCfg(fresh = false) {
+  if (!fresh && _cfg && Date.now() - _cfg.at < 30_000) return _cfg;
+  const [{ data: s }, { data: a }] = await Promise.all([
+    db().from("settings").select("channel").eq("id", 1).single(),
+    db().from("admin_secret").select("key_hash").eq("id", 1).maybeSingle(),
+  ]);
+  _cfg = { channel: (CHANNEL || s?.channel || "").toLowerCase(), keyHash: a?.key_hash ?? "", at: Date.now() };
+  return _cfg;
+}
+export async function channelName(): Promise<string> { return (await siteCfg()).channel; }
+export async function adminKeyOk(req: Request, header = "x-admin-key"): Promise<boolean> {
+  const key = (req.headers.get(header) ?? "").trim();
+  if (key.length < 16) return false;
+  if (ADMIN_KEY.length >= 16 && safeEqual(key, ADMIN_KEY)) return true;
+  const { keyHash } = await siteCfg();
+  return !!keyHash && safeEqual(await sha256("zvezdny:" + key), keyHash);
+}
 
 export async function sha256(s: string): Promise<string> {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));

@@ -95,8 +95,10 @@ async function poll(){
 })();
 
 /* ---------- мост чата: анонимно читаем чат канала и пересылаем коды входа и покупки награды ---------- */
-function startBridge(key){
-  const channel = String(q.get('channel') || C.channel || '').toLowerCase().replace(/^#/, '');
+async function startBridge(key){
+  let dbChannel = '';
+  try { dbChannel = ((await rest('settings?select=channel&id=eq.1'))[0] || {}).channel || ''; } catch(e){}
+  const channel = String(q.get('channel') || dbChannel || C.channel || '').toLowerCase().replace(/^#/, '');
   const st = $('bstat'), stTxt = $('bstatTxt');
   if (q.get('status') === '1') st.hidden = false;
   const say = (ok, txt) => { st.classList.toggle('ok', ok); stTxt.textContent = txt; };
