@@ -30,6 +30,9 @@ Deno.serve(async (req) => {
         if (!CHANNELS.includes(ch)) continue;
         // привязка: стример сам покупает свою награду на своём канале с текстом «привязать»
         if (!rewards[ch] && login === ch && /привязать|bind/i.test(e.text ?? "")) {
+          // помечаем покупку обработанной: второй оверлей не засчитает её как пакетик
+          const { error: dup } = await sb.from("redemptions").insert({ id: "irc:" + e.msg_id, twitch_id: uid });
+          if (dup) continue;
           rewards[ch] = e.reward_id;
           await sb.from("settings").update({ reward_ids: rewards, ...(ch === CHANNEL ? { reward_id: e.reward_id } : {}) }).eq("id", 1);
           out.bound = true; out.bound_channel = ch;
