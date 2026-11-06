@@ -1709,6 +1709,7 @@ async function liveBoot(){
   }
   try { await liveLoadSet(); } catch(e){ toast('Сервер недоступен: показываю стандартный набор'); }
   renderAll(); spawnPack();
+  renderUser(); if (!$('tab-admin').hidden) renderAdminGate(); // список каналов уже с сервера — права стримера пересчитываем
   if (USER && !USER.demo) await liveMe();
   if (ADMIN_KEY && !ADMIN_OK){ adminKeyLogin.silent = true; await adminKeyLogin(ADMIN_KEY).catch(() => {}); adminKeyLogin.silent = false; }
   setInterval(async () => { if (!$('tab-admin').hidden && LIVE){ try { await liveLoadSet(); renderLiveAdmin(); } catch(_){} } }, 30000); // статус моста
