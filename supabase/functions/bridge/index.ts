@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     const now = new Date().toISOString();
     const { data: s } = await sb.from("settings").select("reward_id,reward_ids,direct").eq("id", 1).single();
     const direct: Record<string, boolean> = { ...(s?.direct ?? {}) }; // каналы с прямыми покупками
-    await sb.from("settings").update({ bridge_seen_at: now }).eq("id", 1);
+    await sb.from("settings").update({ bridge_seen_at: now, ...(body.es && typeof body.es === "object" ? { es_state: { ...body.es, at: now } } : {}) }).eq("id", 1);
     // у каждого канала своя награда «Звёздный пак»
     const rewards: Record<string, string> = { ...(s?.reward_ids ?? {}) };
     if (s?.reward_id && !rewards[CHANNEL]) rewards[CHANNEL] = s.reward_id;
@@ -53,12 +53,12 @@ Deno.serve(async (req) => {
       if (e.kind === "redeem" && e.reward_id) {
         const ch = String(e.channel ?? "").toLowerCase();
         if (!CHANNELS.includes(ch)) continue;
-        const bound = rewards[ch];
-        if (bound ? e.reward_id !== bound : !/зв[её]здн\S*\s*пак/i.test(e.reward_title ?? "")) continue;
+        const bound = rewards[ch], titleOk = /зв[её]здн\S*\s*пак/i.test(e.reward_title ?? "");
+        if (e.reward_id !== bound && !titleOk) { console.log("skip redeem", ch, e.reward_title, e.reward_id, "bound", bound); continue; }
         const { error } = await sb.from("redemptions").insert({ id: "es:" + e.msg_id, twitch_id: uid });
         if (error) continue; // уже засчитано (второй оверлей)
         if (await pairedWith(sb, "irc:", uid)) continue; // эту же покупку уже засчитали из чата
-        if (!bound) { // первая покупка награды «Звёздный пак» — привязываем её сами
+        if (e.reward_id !== bound) { // первая покупка или награду пересоздали — привязываем её сами
           rewards[ch] = e.reward_id;
           await sb.from("settings").update({ reward_ids: rewards, ...(ch === CHANNEL ? { reward_id: e.reward_id } : {}) }).eq("id", 1);
           out.bound = true; out.bound_channel = ch;
