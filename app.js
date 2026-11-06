@@ -234,7 +234,23 @@ let TEAR_Y = 12, TEAR_DIR = 1, TEAR_SIDE = 'top', tearSet = false; // где и 
 document.addEventListener('dragstart', e => e.preventDefault());
 // лёгкий режим отрисовки для сенсорных телефонов (?fx=full — принудительно полный, ?fx=low — лёгкий)
 (() => { const q = new URLSearchParams(location.search).get('fx'); const low = q ? q === 'low' : matchMedia('(pointer: coarse)').matches; document.documentElement.classList.toggle('lowfx', low); })();
-const LOWFX = document.documentElement.classList.contains('lowfx'); // без нативного перетаскивания картинок
+let LOWFX = document.documentElement.classList.contains('lowfx');
+// слабое устройство: включаем лёгкий режим сами — по железу или если кадры не успевают
+(() => {
+  const q = new URLSearchParams(location.search).get('fx');
+  if (q || LOWFX) return;
+  let saved = null; try { saved = localStorage.getItem('zvezdny-fx'); } catch(_){}
+  const weak = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4;
+  const on = () => { LOWFX = true; document.documentElement.classList.add('lowfx'); try { localStorage.setItem('zvezdny-fx', 'low'); } catch(_){} };
+  if (saved === 'low' || weak) return on();
+  if (saved === 'full') return;
+  setTimeout(() => { // замер: 2 секунды кадров на главной
+    if (document.hidden) return;
+    let n = 0; const t0 = performance.now();
+    const f = now => { n++; if (now - t0 < 2000) requestAnimationFrame(f); else { const fps = n / ((now - t0) / 1000); if (fps < 45) on(); else { try { localStorage.setItem('zvezdny-fx', 'full'); } catch(_){} } } };
+    requestAnimationFrame(f);
+  }, 2500);
+})(); // без нативного перетаскивания картинок
 let packState = 'sealed', pending = null, tearP = 0, tearEdge = [];
 
 function zigEdge(y, amp, n, dir){ // зубчики по краю шва
@@ -417,7 +433,7 @@ function spawnPack(){
   const b = document.createElement('div');
   b.className = 'booster drop idle'; b.id = 'booster';
   b.setAttribute('aria-label', 'Пакетик с карточкой: потяни верхний край вправо, чтобы открыть');
-  const slices = [2, 4, 6, 8, 10, 12].map((z, i, a) => `<i class="bslice${i === a.length - 1 ? ' back' : ''}" style="clip-path:${FACE_CLIP};transform:translateZ(-${z}px)"></i>`).join('');
+  const slices = [4, 8, 12].map((z, i, a) => `<i class="bslice${i === a.length - 1 ? ' back' : ''}" style="clip-path:${FACE_CLIP};transform:translateZ(-${z}px)"></i>`).join('');
   b.innerHTML = `<i class="bglow"></i><i class="bdropsh"></i>${slices}<div class="bpart bmain">${boosterFace()}<i class="bgap"></i><i class="bfoil m"></i></div><div class="bpart brest">${boosterFace()}</div><div class="btornw"><div class="bpart btorn">${boosterFace()}<i class="bcurl"></i><i class="bcurlhi"></i><i class="bfoil t"></i></div></div>
     <svg class="leak" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points=""/></svg><i class="tearguide"></i><i class="bdent" style="clip-path:${FACE_CLIP}"></i>
     <div class="bhint"><svg viewBox="0 0 24 24" style="animation-direction:reverse"><path d="M19 12H5M11 6l-6 6 6 6"/></svg><span>Рви в любом месте</span><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>`;
@@ -1025,7 +1041,7 @@ if (!LIVE){
   const host = document.querySelector('.bg'), cv = document.createElement('canvas'); host.appendChild(cv);
   const g = cv.getContext('2d'); let W, H;
   const size = () => { W = cv.width = innerWidth; H = cv.height = innerHeight; }; size(); addEventListener('resize', size);
-  const P = Array.from({length: innerWidth < 700 ? 28 : 55}, () => ({
+  const P = Array.from({length: LOWFX ? 14 : innerWidth < 700 ? 28 : 55}, () => ({
     x: Math.random() * innerWidth, y: innerHeight * (.25 + Math.random() * .75), r: .8 + Math.random() * 1.6, v: 6 + Math.random() * 10, ax: Math.random() * 6.28, ay: Math.random() * 6.28,
     dx: (Math.random() - .5) * 6, ph: Math.random() * 6.28, c: Math.random() < .5 ? '217,239,107' : '150,255,140'}));
   let last = 0;

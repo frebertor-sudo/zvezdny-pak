@@ -97,8 +97,8 @@ main[hidden]{display:none}
 /* объём: слои толщины сзади, тень, «подушка» и заломы */
 .bslice{position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,#a3a3b6 0 6%,#2c1a5c 6%,#3b2475 50%,#22164a 94%,#8e8ea2 94%)}
 .bslice.back{background:linear-gradient(180deg,#8e8ea2 0 6%,#1d1240 6% 94%,#7a7a8c 94%)}
-.bdropsh{position:absolute;left:10%;right:10%;top:8%;bottom:4%;border-radius:30%;background:#000;opacity:.75;filter:blur(22px);transform:translateZ(-40px) translateY(18px);pointer-events:none}
-.bglow{position:absolute;inset:4% 6%;border-radius:20%;background:#9b7bff;opacity:.35;filter:blur(30px);transform:translateZ(-30px);pointer-events:none}
+.bdropsh{position:absolute;left:0;right:0;top:0;bottom:-8%;background:radial-gradient(closest-side,#000d 40%,#0000);opacity:.75;transform:translateZ(-40px) translateY(18px);pointer-events:none}
+.bglow{position:absolute;inset:-8% -10%;background:radial-gradient(closest-side,#9b7bffaa 35%,#9b7bff00);opacity:.35;transform:translateZ(-30px);pointer-events:none}
 .bshade{position:absolute;inset:0;z-index:4;pointer-events:none;
   background:
     radial-gradient(90% 55% at calc(50% + var(--lx,0) * 1%) 48%,#ffffff1f,transparent 62%),
