@@ -4,6 +4,18 @@ import { bridgeKeyOk, channelList, channelName, completeLogin, corsHeaders, db, 
 
 type Ev = { kind: "msg" | "reward" | "redeem"; user_id: string; login: string; name?: string; text?: string; msg_id: string; reward_id?: string; reward_title?: string; channel?: string };
 
+// Одна покупка может прийти дважды: из чата (если у награды есть поле текста) и напрямую (EventSub).
+// Пара — запись другого вида от того же зрителя за последние 90 секунд, ещё не «занятая» другой парой.
+async function pairedWith(sb: ReturnType<typeof db>, other: "irc:" | "es:", uid: string): Promise<boolean> {
+  const since = new Date(Date.now() - 90_000).toISOString();
+  const mine = other === "irc:" ? "es:" : "irc:";
+  const [{ count: o }, { count: m }] = await Promise.all([
+    sb.from("redemptions").select("id", { count: "exact", head: true }).eq("twitch_id", uid).like("id", other + "%").gte("created_at", since),
+    sb.from("redemptions").select("id", { count: "exact", head: true }).eq("twitch_id", uid).like("id", mine + "%").gte("created_at", since),
+  ]);
+  return (o ?? 0) >= (m ?? 0); // наша запись уже вставлена, поэтому m ≥ 1
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   try {
@@ -45,6 +57,7 @@ Deno.serve(async (req) => {
         if (bound ? e.reward_id !== bound : !/зв[её]здн\S*\s*пак/i.test(e.reward_title ?? "")) continue;
         const { error } = await sb.from("redemptions").insert({ id: "es:" + e.msg_id, twitch_id: uid });
         if (error) continue; // уже засчитано (второй оверлей)
+        if (await pairedWith(sb, "irc:", uid)) continue; // эту же покупку уже засчитали из чата
         if (!bound) { // первая покупка награды «Звёздный пак» — привязываем её сами
           rewards[ch] = e.reward_id;
           await sb.from("settings").update({ reward_ids: rewards, ...(ch === CHANNEL ? { reward_id: e.reward_id } : {}) }).eq("id", 1);
@@ -59,7 +72,6 @@ Deno.serve(async (req) => {
       if (e.kind === "reward" && e.reward_id) {
         const ch = String(e.channel ?? CHANNEL).toLowerCase();
         if (!CHANNELS.includes(ch)) continue;
-        if (direct[ch] && rewards[ch] && e.reward_id === rewards[ch]) continue; // канал подключён напрямую — эту покупку засчитает EventSub
         // привязка: стример сам покупает свою награду на своём канале с текстом «привязать»
         if (!rewards[ch] && login === ch && /привязать|bind/i.test(e.text ?? "")) {
           // помечаем покупку обработанной: второй оверлей не засчитает её как пакетик
@@ -72,7 +84,8 @@ Deno.serve(async (req) => {
         }
         if (e.reward_id !== rewards[ch]) continue;
         const { error } = await sb.from("redemptions").insert({ id: "irc:" + e.msg_id, twitch_id: uid });
-        if (error) continue; // уже засчитано
+        if (error) continue;
+        if (direct[ch] && await pairedWith(sb, "es:", uid)) continue; // эту же покупку уже засчитал EventSub // уже засчитано
         const r = await sb.rpc("add_packs", { p_uid: uid, p_login: login, p_name: name, p_n: 1 });
         if (r.error) await sb.from("redemptions").delete().eq("id", "irc:" + e.msg_id);
         else out.packs++;

@@ -238,6 +238,11 @@ export async function freshLink(row: TwLink): Promise<TwLink | null> {
   if (row.expires_at && Date.parse(row.expires_at) - Date.now() > 15 * 60_000) return row;
   const v = await twValidate(row.token);
   const sb = db();
+  if (v && v.expires_in === 0) { // бессрочный токен: обновлять не нужно, проверим снова через сутки
+    const expires_at = new Date(Date.now() + 24 * 3600_000).toISOString();
+    await sb.from("twitch_links").update({ expires_at }).eq("channel", row.channel);
+    return { ...row, expires_at };
+  }
   if (v && v.expires_in > 15 * 60) {
     const expires_at = new Date(Date.now() + v.expires_in * 1000).toISOString();
     await sb.from("twitch_links").update({ expires_at }).eq("channel", row.channel);
