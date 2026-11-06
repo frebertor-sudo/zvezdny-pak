@@ -96,21 +96,24 @@ async function poll(){
 
 /* ---------- мост чата: анонимно читаем чат канала и пересылаем коды входа и покупки награды ---------- */
 async function startBridge(key){
-  let dbChannel = '';
-  try { dbChannel = ((await rest('settings?select=channel&id=eq.1'))[0] || {}).channel || ''; } catch(e){}
-  const channel = String(q.get('channel') || dbChannel || C.channel || '').toLowerCase().replace(/^#/, '');
+  let st0 = {};
+  try { st0 = (await rest('settings?select=channel,channels&id=eq.1'))[0] || {}; } catch(e){}
+  // все каналы сайта (или только указанные в ?channel=a,b)
+  const list = (q.get('channel') ? q.get('channel').split(',') : [st0.channel || C.channel, ...(st0.channels || [])])
+    .map(c => String(c || '').toLowerCase().replace(/^#/, '').trim()).filter(c => /^[a-z0-9_]{3,25}$/.test(c));
+  const channels = [...new Set(list)], channel = channels.join(', #');
   const st = $('bstat'), stTxt = $('bstatTxt');
   if (q.get('status') === '1') st.hidden = false;
   const say = (ok, txt) => { st.classList.toggle('ok', ok); stTxt.textContent = txt; };
-  if (!channel){ say(false, 'мост: не указан канал (channel в config.js)'); st.hidden = false; return; }
+  if (!channels.length){ say(false, 'мост: не указан канал (channel в config.js)'); st.hidden = false; return; }
   let ws, backoff = 1000, queue = [], sent = 0, packs = 0, logins = 0, keyBad = false;
   const tags = raw => { const o = {}; raw.split(';').forEach(kv => { const i = kv.indexOf('='); o[kv.slice(0, i)] = kv.slice(i + 1).replace(/\\s/g, ' ').replace(/\\:/g, ';').replace(/\\\\/g, '\\'); }); return o; };
   function onLine(line){
     if (line.startsWith('PING')) return ws.send('PONG :tmi.twitch.tv');
-    const m = /^@(\S+) :([^!]+)!\S+ PRIVMSG #\S+ :(.*)$/.exec(line);
+    const m = /^@(\S+) :([^!]+)!\S+ PRIVMSG #(\S+) :(.*)$/.exec(line);
     if (!m) return;
-    const tg = tags(m[1]), login = m[2], text = m[3];
-    const base = {user_id: tg['user-id'], login, name: tg['display-name'] || login, text: text.slice(0, 200), msg_id: tg['id']};
+    const tg = tags(m[1]), login = m[2], room = m[3].toLowerCase(), text = m[4];
+    const base = {user_id: tg['user-id'], login, name: tg['display-name'] || login, text: text.slice(0, 200), msg_id: tg['id'], channel: room};
     if (tg['custom-reward-id']) queue.push({...base, kind: 'reward', reward_id: tg['custom-reward-id']});
     else if (/\d{4}/.test(text) && text.length <= 40) queue.push({...base, kind: 'msg'});
   }
@@ -120,7 +123,7 @@ async function startBridge(key){
       ws.send('CAP REQ :twitch.tv/tags twitch.tv/commands');
       ws.send('PASS SCHMOOPIIE');
       ws.send('NICK justinfan' + Math.floor(10000 + Math.random() * 80000)); // анонимный читатель, вход не нужен
-      ws.send('JOIN #' + channel);
+      ws.send('JOIN ' + channels.map(c => '#' + c).join(','));
       backoff = 1000; say(!keyBad, keyBad ? 'мост: неверный ключ' : `мост: слушаю #${channel}`);
     };
     ws.onmessage = e => String(e.data).split('\r\n').filter(Boolean).forEach(onLine);
@@ -134,7 +137,7 @@ async function startBridge(key){
       if (r.status === 403){ keyBad = true; say(false, 'мост: неверный ключ стримера'); st.hidden = false; return; }
       const d = await r.json();
       sent += events.length; packs += d.packs || 0; logins += d.logins || 0;
-      if (d.bound) say(true, 'мост: награда привязана!');
+      if (d.bound) say(true, `мост: награда ${d.bound_channel || ''} привязана!`);
       else say(true, `мост: #${channel} · входов ${logins} · пакетиков ${packs}`);
     } catch(e){ queue.unshift(...events); say(false, 'мост: нет связи с сервером'); }
   }

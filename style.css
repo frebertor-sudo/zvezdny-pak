@@ -377,6 +377,12 @@ button.tile.full:hover .card{box-shadow:0 14px 40px #0009,0 0 40px -6px var(--rc
 .lw-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .lw-state{font-size:.8rem;font-weight:700;border-radius:99px;padding:2px 10px;background:#2c4136;color:var(--soft)}
 .lw-state.on{background:#e5354f;color:#fff}
+.chsw{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 10px}
+.chsw:empty{display:none}
+.chsw button{font:inherit;font-size:.85rem;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--soft);border-radius:99px;padding:3px 12px;display:inline-flex;gap:6px;align-items:center}
+.chsw button.on{border-color:var(--tea);color:var(--tx,#e8f3ea)}
+.chsw button i{width:8px;height:8px;border-radius:50%;background:#55655b}
+.chsw button i.live{background:#e5354f;box-shadow:0 0 8px #e5354f}
 .lw-prog{margin-top:12px}
 .lw-txt{font-size:.92rem;color:var(--soft);margin-bottom:6px}
 .lw-txt b{color:var(--tx,#e8f3ea)}

@@ -1,6 +1,6 @@
 // Единая точка API сайта. Запросы подтверждаются сессией сайта (x-session), токеном Twitch (x-twitch-token) или ключом стримера (x-admin-key).
 import {
-  adminKeyOk, appToken, channelName, CLIENT_ID, corsHeaders, db, EVENTSUB_SECRET, HttpError, json, sha256, SUPABASE_URL,
+  adminKeyOk, appToken, channelList, channelName, CLIENT_ID, corsHeaders, db, EVENTSUB_SECRET, HttpError, json, sha256, SUPABASE_URL,
   completeLogin, decapiLast, isFollower, isLive, randomToken, type SiteUser, siteCfg, waitChatCode, whoami,
 } from "../_shared/common.ts";
 type TwitchUser = SiteUser;
@@ -29,16 +29,18 @@ function rpcError(e: { message?: string } | null) {
   throw new HttpError(code ? 409 : 500, code ? ERR_TEXT[code] : "Ошибка базы");
 }
 
-let CHANNEL = ""; // логин канала (обновляется на каждый запрос из секретов или базы)
+let CHANNEL = ""; // основной канал (обновляется на каждый запрос из секретов или базы)
+let CHANNELS: string[] = []; // все каналы сайта
+const isChannelOwner = (u: TwitchUser | null) => !!u && CHANNELS.includes(u.login);
 function requireStreamer(u: TwitchUser | null, admin = false) {
   if (admin) return; // запрос пришёл с ключом стримера
-  if (!u || !CHANNEL || u.login !== CHANNEL) throw new HttpError(403, "Только для стримера канала");
+  if (!isChannelOwner(u)) throw new HttpError(403, "Только для стримера канала");
 }
 // «Только фолловеры»: проверяем фоллоу через decapi, удачную проверку помним час.
 async function requireFollower(u: TwitchUser) {
   const sb = db();
   const { data: s } = await sb.from("settings").select("follow_only").eq("id", 1).single();
-  if (!s?.follow_only || u.login === CHANNEL) return;
+  if (!s?.follow_only || isChannelOwner(u)) return;
   const { data: p } = await sb.from("profiles").select("follow_ok_at").eq("twitch_id", u.id).maybeSingle();
   if (p?.follow_ok_at && Date.now() - Date.parse(p.follow_ok_at) < 60 * 60 * 1000) return;
   const f = await isFollower(CHANNEL, u.login);
@@ -135,7 +137,7 @@ Deno.serve(async (req) => {
     if (req.method !== "POST") throw new HttpError(405, "POST only");
     const body = await req.json().catch(() => ({}));
     const sb = db();
-    CHANNEL = await channelName();
+    CHANNEL = await channelName(); CHANNELS = await channelList();
     const ADMIN = await adminKeyOk(req);
 
     // ---------- первый запуск: стример задаёт ключ на сайте, пока открыто окно ----------
@@ -165,7 +167,7 @@ Deno.serve(async (req) => {
       if (error) throw new HttpError(500, "Не удалось начать вход");
       const { data: s } = await sb.from("settings").select("bridge_seen_at").eq("id", 1).single();
       const online = !!s?.bridge_seen_at && Date.now() - Date.parse(s.bridge_seen_at) < 3 * 60 * 1000;
-      return json(req, { request_id: data.id, code, channel: CHANNEL, expires_at: data.expires_at, bridge_online: online });
+      return json(req, { request_id: data.id, code, channel: CHANNEL, channels: CHANNELS, expires_at: data.expires_at, bridge_online: online });
     }
     if (body.action === "login_poll") {
       const rid = String(body.request_id);
@@ -173,7 +175,7 @@ Deno.serve(async (req) => {
       if (!l) throw new HttpError(404, "Попытка входа не найдена");
       // долгое ожидание: сервер сам слушает чат канала, мост в OBS для входа не нужен
       if (body.wait && !l.verified_at && Date.parse(l.expires_at) > Date.now() && CHANNEL) {
-        const hit = await waitChatCode(CHANNEL, l.login, l.code, 22_000);
+        const hit = await waitChatCode(CHANNELS, l.login, l.code, 22_000); // код можно написать в чате любого канала
         if (hit) await completeLogin(rid, hit.uid, l.login, hit.name);
         ({ data: l } = await sb.from("logins").select("login,code,verified_at,expires_at,token,twitch_id").eq("id", rid).maybeSingle());
         if (!l) throw new HttpError(404, "Попытка входа не найдена");
@@ -195,7 +197,7 @@ Deno.serve(async (req) => {
     }
     if (body.action === "me" && !who) {
       if (!ADMIN) throw new HttpError(401, "no_session");
-      return json(req, { profile: null, owned: [], is_streamer: true, scopes: [] });
+      return json(req, { profile: null, owned: [], is_streamer: true, channels: CHANNELS, scopes: [] });
     }
     const isAdminOnly = !["me", "open", "craft", "watch_ping", "drop_claim", "ufo_catch"].includes(String(body.action));
     if (!isAdminOnly) requireUser(who);
@@ -209,7 +211,7 @@ Deno.serve(async (req) => {
           { twitch_id: u.id, login: u.login, name: u.name, ...(u.avatar ? { avatar: u.avatar } : {}), updated_at: new Date().toISOString() },
           { onConflict: "twitch_id", ignoreDuplicates: false },
         );
-        return json(req, { ...(await profileWithCollection(u.id)), is_streamer: ADMIN || u.login === CHANNEL, scopes: u.scopes });
+        return json(req, { ...(await profileWithCollection(u.id)), is_streamer: ADMIN || isChannelOwner(u), channels: CHANNELS, scopes: u.scopes });
       }
       case "open": {
         await requireFollower(u);
@@ -225,11 +227,12 @@ Deno.serve(async (req) => {
 
       // ---------- удержание: просмотр, звездопад, НЛО ----------
       case "watch_ping": { // сайт открыт и стрим идёт — копим минуты к бесплатному пакетику
-        const [live, { data: s }, { data: p }] = await Promise.all([
-          isLive(CHANNEL),
+        const [liveList, { data: s }, { data: p }] = await Promise.all([
+          Promise.all(CHANNELS.map((c) => isLive(c))),
           sb.from("settings").select("watch_minutes,watch_daily").eq("id", 1).single(),
           sb.from("profiles").select("watch_sec,watch_last,watch_day,watch_today").eq("twitch_id", u.id).single(),
         ]);
+        const live = liveList.some(Boolean), liveOn = CHANNELS.filter((_, i) => liveList[i]); // стрим идёт хотя бы на одном канале
         const need = Math.max(5, s?.watch_minutes ?? 30) * 60, daily = Math.max(0, s?.watch_daily ?? 4);
         const now = Date.now(), today = new Date(now + 3 * 3600_000).toISOString().slice(0, 10); // сутки по Москве
         let sec = p?.watch_sec ?? 0, todayN = p?.watch_day === today ? (p?.watch_today ?? 0) : 0, gained = 0;
@@ -242,7 +245,7 @@ Deno.serve(async (req) => {
           }
           await sb.from("profiles").update({ watch_sec: sec, watch_last: new Date(now).toISOString(), watch_day: today, watch_today: todayN }).eq("twitch_id", u.id);
         }
-        const out: Record<string, unknown> = { live, sec, need, today: todayN, daily, gained };
+        const out: Record<string, unknown> = { live, live_on: liveOn, sec, need, today: todayN, daily, gained };
         if (gained) Object.assign(out, await profileWithCollection(u.id));
         return json(req, out);
       }
@@ -369,9 +372,13 @@ Deno.serve(async (req) => {
         const follows = await isFollower(CHANNEL, login);
         return json(req, { has_token: !!decapi, follows, detail: follows === null ? decapiLast : "" });
       }
-      case "reward_unbind": // отвязать награду, чтобы привязать другую
-        await sb.from("settings").update({ reward_id: null }).eq("id", 1);
+      case "reward_unbind": { // отвязать награду канала, чтобы привязать другую
+        const ch = String(body.channel ?? (u?.login && CHANNELS.includes(u.login) ? u.login : CHANNEL)).toLowerCase();
+        const { data: s } = await sb.from("settings").select("reward_ids").eq("id", 1).single();
+        const ids = { ...(s?.reward_ids ?? {}) }; delete ids[ch];
+        await sb.from("settings").update({ reward_ids: ids, ...(ch === CHANNEL ? { reward_id: null } : {}) }).eq("id", 1);
         return json(req, { ok: true });
+      }
 
       default:
         throw new HttpError(400, "unknown_action");

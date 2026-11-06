@@ -79,17 +79,21 @@ export function safeEqual(a: string, b: string) {
   return r === 0;
 }
 // Канал и ключ стримера: из секретов функции или из базы (задаются на сайте без панели Supabase).
-let _cfg: { channel: string; keyHash: string; bridgeKey: string; decapi: string; at: number } | null = null;
+let _cfg: { channel: string; channels: string[]; keyHash: string; bridgeKey: string; decapi: string; at: number } | null = null;
 export async function siteCfg(fresh = false) {
   if (!fresh && _cfg && Date.now() - _cfg.at < 30_000) return _cfg;
   const [{ data: s }, { data: a }] = await Promise.all([
-    db().from("settings").select("channel").eq("id", 1).single(),
+    db().from("settings").select("channel,channels").eq("id", 1).single(),
     db().from("admin_secret").select("key_hash,bridge_key,decapi_token").eq("id", 1).maybeSingle(),
   ]);
-  _cfg = { channel: (CHANNEL || s?.channel || "").toLowerCase(), keyHash: a?.key_hash ?? "", bridgeKey: a?.bridge_key ?? "", decapi: a?.decapi_token ?? "", at: Date.now() };
+  const main = (CHANNEL || s?.channel || "").toLowerCase();
+  const channels = [...new Set([main, ...((s?.channels ?? []) as string[]).map((c) => String(c).toLowerCase())].filter((c) => /^[a-z0-9_]{3,25}$/.test(c)))];
+  _cfg = { channel: main, channels, keyHash: a?.key_hash ?? "", bridgeKey: a?.bridge_key ?? "", decapi: a?.decapi_token ?? "", at: Date.now() };
   return _cfg;
 }
 export async function channelName(): Promise<string> { return (await siteCfg()).channel; }
+// все каналы сайта: основной первым
+export async function channelList(): Promise<string[]> { return (await siteCfg()).channels; }
 export async function adminKeyOk(req: Request, header = "x-admin-key"): Promise<boolean> {
   const key = (req.headers.get(header) ?? "").trim();
   if (key.length < 16) return false;
@@ -153,7 +157,7 @@ export function ircTags(raw: string): Record<string, string> {
   return o;
 }
 // Ждём в чате канала сообщение от login с кодом. Возвращает id и имя зрителя (из тегов Twitch) или null.
-export function waitChatCode(channel: string, login: string, code: string, ms: number): Promise<{ uid: string; name: string } | null> {
+export function waitChatCode(channel: string | string[], login: string, code: string, ms: number): Promise<{ uid: string; name: string } | null> {
   return new Promise((resolve) => {
     let done = false, ws: WebSocket;
     const finish = (v: { uid: string; name: string } | null) => {
@@ -167,7 +171,7 @@ export function waitChatCode(channel: string, login: string, code: string, ms: n
       ws.send("CAP REQ :twitch.tv/tags");
       ws.send("PASS SCHMOOPIIE");
       ws.send("NICK justinfan" + (10000 + Math.floor(Math.random() * 80000)));
-      ws.send("JOIN #" + channel);
+      ws.send("JOIN " + (Array.isArray(channel) ? channel : [channel]).map((c) => "#" + c).join(","));
     };
     ws.onmessage = (e) => {
       for (const line of String(e.data).split("\r\n")) {
@@ -195,16 +199,17 @@ export async function completeLogin(loginId: string, uid: string, login: string,
 }
 
 // Идёт ли сейчас стрим на канале: decapi.me/twitch/uptime (без токена). Кешируем на минуту.
-let _live: { ch: string; v: boolean; at: number } | null = null;
+const _live = new Map<string, { v: boolean; at: number }>(); // кеш «в эфире» по каждому каналу
 export async function isLive(channel: string): Promise<boolean> {
   if (!channel) return false;
-  if (_live && _live.ch === channel && Date.now() - _live.at < 60_000) return _live.v;
+  const c = _live.get(channel);
+  if (c && Date.now() - c.at < 60_000) return c.v;
   let v = false;
   try {
     const r = await fetch(`https://decapi.me/twitch/uptime/${encodeURIComponent(channel)}`, { signal: AbortSignal.timeout(5000) });
     const t = (await r.text()).trim();
     v = r.ok && !/offline|not found|error/i.test(t) && /\d+\s*(second|minute|hour|day)/i.test(t);
-  } catch (e) { console.error("uptime", e); v = _live?.v ?? false; }
-  _live = { ch: channel, v, at: Date.now() };
+  } catch (e) { console.error("uptime", e); v = c?.v ?? false; }
+  _live.set(channel, { v, at: Date.now() });
   return v;
 }

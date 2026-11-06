@@ -526,7 +526,7 @@ function beginTear(){
   if (!USER){ openLogin('Чтобы открыть пак, войди через Twitch: баллы и коллекция привязаны к твоему аккаунту.'); return false; }
   if (LIVE){
     if (!(S.packs > 0)){
-      setNote(`Пакетиков нет. Купи награду «Звёздный пак» за баллы канала на twitch.tv/${TWITCH.channel} — пакетик появится здесь сам.`);
+      setNote(`Пакетиков нет. Пакетики дают за просмотр стрима, звездопад и награду «Звёздный пак» на ${chList()} — пакетик появится здесь сам.`);
       toast('Нет пакетиков'); return false;
     }
     S.packs--; pending = null; liveOpenRequest();
@@ -1314,7 +1314,9 @@ const AUTH_KEY = 'zvezdny-auth-v1';
 let USER = null; // {login, name, avatar, id, token, demo}
 const realAuth = () => !!TWITCH.clientId;
 const redirectUri = () => location.origin + location.pathname;
-const isStreamer = () => ADMIN_OK || (!!USER && USER.login === TWITCH.channel.toLowerCase());
+let CHANNELS = [String(TWITCH.channel).toLowerCase()]; // все каналы сайта: основной первым
+const chList = (sep = ' или ') => CHANNELS.map(c => 'twitch.tv/' + c).join(sep);
+const isStreamer = () => ADMIN_OK || (!!USER && CHANNELS.includes(USER.login));
 const BUSY_STATES = ['tearing', 'auto', 'pull', 'waiting', 'opening'];
 
 function openLogin(reason){
@@ -1369,7 +1371,7 @@ function setUser(u){
 function renderUser(){
   const box = $('userbox');
   if (!USER && ADMIN_OK){
-    box.innerHTML = `<span class="uchip"><span class="ava">★</span><b>${TWITCH.channel}</b><span class="role">стример</span><button id="logout">Выйти</button></span>`;
+    box.innerHTML = `<span class="uchip"><span class="ava">★</span><b>${CHANNELS.join(', ')}</b><span class="role">стример</span><button id="logout">Выйти</button></span>`;
   } else if (!USER){
     box.innerHTML = `<button class="twbtn" data-login><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3 3.5 7v12h4v2.5h2.5l2.5-2.5h3.5l5-5V3H5Zm14.5 10-3 3h-4L10 18.5V16H6.5V5h13v8Z" fill="currentColor"/><path d="M15 7.5h2v5h-2zM10.5 7.5h2v5h-2z" fill="currentColor"/></svg>Войти через Twitch</button>`;
     $('nick').disabled = false;
@@ -1401,7 +1403,7 @@ function renderAdminGate(){
     : `Войди через Twitch-аккаунт канала ${TWITCH.channel}, чтобы добавлять карточки и настраивать шансы.`;
   const lb = $('admLock').querySelector('[data-login]'); lb.lastChild.textContent = CHAT_AUTH ? 'Войти через чат' : USER ? 'Войти аккаунтом канала' : 'Войти через Twitch';
   $('admKeyToggle').hidden = !LIVE || !$('admKeyRow').hidden;
-  if (LIVE && !ok) $('admLockTxt').textContent = `Войди так же, как зрители: нажми «Войти через чат», впиши ник ${TWITCH.channel} и напиши код в своём чате. Панель откроется сама.`;
+  if (LIVE && !ok) $('admLockTxt').textContent = `Войди так же, как зрители: нажми «Войти через чат», впиши ник своего канала (${CHANNELS.join(' или ')}) и напиши код в своём чате. Панель откроется сама.`;
   renderClaim(ok);
   if (ok) renderAdmin();
 }
@@ -1508,7 +1510,7 @@ async function rest(path){
 async function liveLoadSet(){
   const [cards, sets] = await Promise.all([
     rest('cards?select=id,sort,name,flavor,rarity,img,tall&active=eq.true&order=sort.asc'),
-    rest('settings?select=odds,foil,pity,cost,reward_id,bridge_seen_at,channel,claim_until,follow_only,watch_minutes,watch_daily&id=eq.1')
+    rest('settings?select=odds,foil,pity,cost,reward_id,bridge_seen_at,channel,claim_until,follow_only,watch_minutes,watch_daily,channels,reward_ids&id=eq.1')
   ]);
   const s = sets[0] || {};
   CARDS = cards.map(c => ({id: c.id, name: c.name, flavor: c.flavor, r: c.rarity, img: c.img, tall: c.tall}));
@@ -1516,6 +1518,7 @@ async function liveLoadSet(){
   Object.keys(RAR).forEach(r => RAR[r].w = s.odds && s.odds[r] != null ? +s.odds[r] : RAR[r].w);
   FOIL = (s.foil ?? 12) / 100; PITY = s.pity || 10; COST = s.cost || 5000; LIVESET = s;
   if (s.channel) TWITCH.channel = s.channel;
+  if (s.channel) CHANNELS = [...new Set([s.channel, ...(s.channels || [])].map(c => String(c).toLowerCase()))];
 }
 async function liveReload(){
   try { await liveLoadSet(); } catch(e){ toast(e.message); }
@@ -1572,15 +1575,23 @@ function renderLiveAdmin(){
   }
   if (LIVE && document.activeElement !== $('flOn')) $('flOn').value = LIVESET && LIVESET.follow_only ? '1' : '0';
   box.hidden = !LIVE; if (!LIVE) return;
-  const bound = !!(LIVESET && LIVESET.reward_id);
+  const RW = {...((LIVESET && LIVESET.reward_ids) || {})};
+  if (LIVESET && LIVESET.reward_id && !RW[CHANNELS[0]]) RW[CHANNELS[0]] = LIVESET.reward_id;
+  const bound = CHANNELS.some(c => RW[c]);
   if (CHAT_AUTH){
     const online = bridgeOnline();
     $('admLiveTxt').innerHTML = `
       <b>Мост чата:</b> ${online ? '<span style="color:#5fd68a">на связи</span>' : '<span style="color:#ffb35c">не запущен</span>'} — это оверлей в OBS со ссылкой ниже. Пока он открыт, зрители получают пакетики за награду. Входить на сайт можно и без него.<br><br>
-      <b>Награда:</b> ${bound
-        ? `привязана. Каждая покупка «Звёздного пака» даёт зрителю пакетик.`
-        : `создай на Twitch награду <b>«Звёздный пак»</b> (Панель управления автора → Награды зрителей → Баллы канала → Управление наградами), включи <b>«Попросить зрителя ввести текст»</b>. Потом при запущенном оверлее купи её сам и напиши в поле: <b>привязать</b>.`}`;
-    $('admReward').hidden = true; $('admUnbind').hidden = !bound;
+      <b>Каналы сайта:</b> ${CHANNELS.map(c => `<b>${c}</b>`).join(', ')}. Зрители входят кодом из чата любого из них, коллекции общие.<br><br>
+      <b>Награда «Звёздный пак» за баллы канала</b> (у каждого канала своя):<br>
+      ${CHANNELS.map(c => RW[c]
+        ? `✅ <b>${c}</b> — привязана <button class="cat" data-unbind="${c}">Отвязать</button>`
+        : `⏳ <b>${c}</b> — не привязана`).join('<br>')}<br>
+      <span class="lh" style="font-size:.85rem">Как привязать: создай на Twitch награду <b>«Звёздный пак»</b> с включённым «Попросить зрителя ввести текст» (нужны баллы канала — они есть у компаньонов и партнёров). При запущенном оверлее купи её сам на своём канале и напиши в поле: <b>привязать</b>.</span>`;
+    $('admReward').hidden = true; $('admUnbind').hidden = true;
+    $('admLiveTxt').querySelectorAll('[data-unbind]').forEach(b => b.addEventListener('click', async () => {
+      try { await api('reward_unbind', {channel: b.dataset.unbind}); await liveLoadSet(); renderLiveAdmin(); toast('Награда отвязана — привяжи новую'); } catch(e){ toast(e.message); }
+    }));
     const obs = $('admObs');
     obs.hidden = false;
     obs.innerHTML = BRIDGE_KEY || ADMIN_KEY
@@ -1606,6 +1617,7 @@ let WATCH = null;
 function renderWatch(){
   const w = WATCH, chip = $('watchChip'), on = !!(w && w.live);
   $('lwState').textContent = on ? 'В ЭФИРЕ' : 'офлайн'; $('lwState').classList.toggle('on', on);
+  renderChSwitch();
   if (!USER || USER.demo){ chip.hidden = true; $('lwTxt').innerHTML = 'Войди на сайт: пока идёт стрим, за просмотр дают бесплатные пакетики.'; $('lwBar').style.width = '0'; return; }
   if (!w) return;
   const m = Math.floor(w.sec / 60), need = Math.round(w.need / 60), done = w.today >= w.daily;
@@ -1624,9 +1636,19 @@ async function watchPing(){
   } catch(e){}
   renderWatch();
 }
-function mountPlayer(){ // плеер и чат грузим только когда открыли вкладку «Стрим»
-  if (!LIVE || $('playerBox').dataset.on) return;
-  const ch = encodeURIComponent(TWITCH.channel), host = encodeURIComponent(location.hostname);
+let PLAY_CH = '';
+function renderChSwitch(){
+  const box = $('chSwitch'); if (CHANNELS.length < 2){ box.innerHTML = ''; return; }
+  const on = (WATCH && WATCH.live_on) || [];
+  box.innerHTML = CHANNELS.map(c => `<button data-ch="${c}" class="${c === PLAY_CH ? 'on' : ''}"><i class="${on.includes(c) ? 'live' : ''}"></i>${c}</button>`).join('');
+}
+$('chSwitch').addEventListener('click', e => { const b = e.target.closest('[data-ch]'); if (b) mountPlayer(b.dataset.ch); });
+function mountPlayer(pick){ // плеер и чат грузим только когда открыли вкладку «Стрим»
+  if (!LIVE) return;
+  const want = pick || PLAY_CH || ((WATCH && WATCH.live_on && WATCH.live_on[0]) || CHANNELS[0]);
+  if (want === PLAY_CH && $('playerBox').dataset.on) return;
+  PLAY_CH = want; renderChSwitch();
+  const ch = encodeURIComponent(want), host = encodeURIComponent(location.hostname);
   $('playerBox').dataset.on = 1;
   $('playerBox').innerHTML = `<iframe src="https://player.twitch.tv/?channel=${ch}&parent=${host}&autoplay=true" allowfullscreen allow="autoplay; fullscreen" title="Стрим ${ch}"></iframe>`;
   $('chatBox').innerHTML = `<iframe src="https://www.twitch.tv/embed/${ch}/chat?parent=${host}&darkpopout" title="Чат ${ch}"></iframe>`;
@@ -1754,10 +1776,13 @@ async function chatLoginStart(){
   $('lgChatGo').disabled = true;
   try {
     const d = await api('login_start', {login: nick});
-    const ch = d.channel || TWITCH.channel, cmd = `!пак ${d.code}`;
-    $('lgChatHow').innerHTML = `Напиши в чате канала <b>twitch.tv/${ch}</b> с аккаунта <b>${nick.replace(/[<>&"]/g, '')}</b>:`;
+    const chs = d.channels && d.channels.length ? d.channels : [d.channel || TWITCH.channel], cmd = `!пак ${d.code}`;
+    $('lgChatHow').innerHTML = `Напиши в чате ${chs.length > 1 ? 'любого канала' : 'канала'} ${chs.map(c => `<b>twitch.tv/${c}</b>`).join(' или ')} с аккаунта <b>${nick.replace(/[<>&"]/g, '')}</b>:`;
     $('lgChatCmd').textContent = cmd;
-    $('lgChatOpen').href = `https://www.twitch.tv/popout/${ch}/chat`;
+    $('lgChatOpen').href = `https://www.twitch.tv/popout/${chs[0]}/chat`;
+    $('lgChatOpen').textContent = chs.length > 1 ? `Чат ${chs[0]}` : 'Открыть чат';
+    $('lgChatOpen').parentElement.querySelectorAll('.chx').forEach(a => a.remove());
+    chs.slice(1).forEach(c => { const a = document.createElement('a'); a.className = 'cat chx'; a.target = '_blank'; a.rel = 'noopener'; a.href = `https://www.twitch.tv/popout/${c}/chat`; a.textContent = `Чат ${c}`; $('lgChatOpen').after(a); });
     $('lgChatState').textContent = 'Жду сообщение в чате… Код действует 10 минут. Если не сработало за минуту — напиши его ещё раз.';
     $('lgChatStart').hidden = true; $('lgChatCode').hidden = false;
     $('lgChatCopy').onclick = () => navigator.clipboard?.writeText(cmd).then(() => toast('Скопировано')).catch(() => {});
