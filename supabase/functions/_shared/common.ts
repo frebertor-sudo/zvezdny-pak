@@ -213,3 +213,43 @@ export async function isLive(channel: string): Promise<boolean> {
   _live.set(channel, { v, at: Date.now() });
   return v;
 }
+
+// ---------- прямые покупки наград: токен «читать покупки» через twitchtokengenerator.com ----------
+const TTG = "https://twitchtokengenerator.com/api";
+export type TwLink = { channel: string; user_id: string; token: string; refresh: string; client_id: string; expires_at: string | null };
+export async function ttgCreate(): Promise<{ id: string; url: string }> {
+  const r = await fetch(`${TTG}/create/${btoa("Zvezdny Pak")}/channel:read:redemptions`, { signal: AbortSignal.timeout(8000) });
+  const d = await r.json().catch(() => ({}));
+  if (!d?.success || !d.id) throw new HttpError(502, "Сервис подключения не ответил, попробуй ещё раз");
+  return { id: String(d.id), url: String(d.message) };
+}
+export async function ttgStatus(id: string): Promise<Record<string, unknown>> {
+  const r = await fetch(`${TTG}/status/${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(8000) });
+  return await r.json().catch(() => ({}));
+}
+export async function twValidate(token: string): Promise<{ login: string; user_id: string; client_id: string; expires_in: number; scopes: string[] } | null> {
+  const r = await fetch("https://id.twitch.tv/oauth2/validate", { headers: { Authorization: `OAuth ${token}` }, signal: AbortSignal.timeout(6000) });
+  if (!r.ok) return null;
+  const v = await r.json();
+  return { login: String(v.login).toLowerCase(), user_id: String(v.user_id), client_id: String(v.client_id), expires_in: Number(v.expires_in) || 0, scopes: v.scopes ?? [] };
+}
+// свежий токен канала: если скоро истечёт — обновляем через refresh
+export async function freshLink(row: TwLink): Promise<TwLink | null> {
+  if (row.expires_at && Date.parse(row.expires_at) - Date.now() > 15 * 60_000) return row;
+  const v = await twValidate(row.token);
+  const sb = db();
+  if (v && v.expires_in > 15 * 60) {
+    const expires_at = new Date(Date.now() + v.expires_in * 1000).toISOString();
+    await sb.from("twitch_links").update({ expires_at }).eq("channel", row.channel);
+    return { ...row, expires_at };
+  }
+  const r = await fetch(`${TTG}/refresh/${encodeURIComponent(row.refresh)}`, { signal: AbortSignal.timeout(8000) });
+  const d = await r.json().catch(() => ({}));
+  const token = String(d?.token ?? d?.access_token ?? ""), refresh = String(d?.refresh ?? d?.refresh_token ?? row.refresh);
+  if (!d?.success || !token) { console.error("ttg refresh", JSON.stringify(d).slice(0, 200)); return null; }
+  const v2 = await twValidate(token);
+  if (!v2) return null;
+  const next = { ...row, token, refresh, client_id: v2.client_id, expires_at: new Date(Date.now() + v2.expires_in * 1000).toISOString() };
+  await sb.from("twitch_links").update({ token, refresh, client_id: v2.client_id, expires_at: next.expires_at, updated_at: new Date().toISOString() }).eq("channel", row.channel);
+  return next;
+}

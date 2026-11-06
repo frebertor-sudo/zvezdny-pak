@@ -1,7 +1,7 @@
 // Единая точка API сайта. Запросы подтверждаются сессией сайта (x-session), токеном Twitch (x-twitch-token) или ключом стримера (x-admin-key).
 import {
   adminKeyOk, appToken, channelList, channelName, CLIENT_ID, corsHeaders, db, EVENTSUB_SECRET, HttpError, json, sha256, SUPABASE_URL,
-  completeLogin, decapiLast, isFollower, isLive, randomToken, type SiteUser, siteCfg, waitChatCode, whoami,
+  completeLogin, decapiLast, isFollower, isLive, ttgCreate, ttgStatus, twValidate, randomToken, type SiteUser, siteCfg, waitChatCode, whoami,
 } from "../_shared/common.ts";
 type TwitchUser = SiteUser;
 
@@ -371,6 +371,41 @@ Deno.serve(async (req) => {
         const { decapi } = await siteCfg(true);
         const follows = await isFollower(CHANNEL, login);
         return json(req, { has_token: !!decapi, follows, detail: follows === null ? decapiLast : "" });
+      }
+      // ---------- прямые покупки наград (без текста): подключение канала ----------
+      case "tw_link_start": {
+        requireStreamer(u, ADMIN);
+        const { id, url } = await ttgCreate();
+        await sb.from("twitch_pending").delete().lt("created_at", new Date(Date.now() - 3600_000).toISOString());
+        await sb.from("twitch_pending").insert({ id });
+        return json(req, { id, url });
+      }
+      case "tw_link_poll": {
+        requireStreamer(u, ADMIN);
+        const id = String(body.id ?? "");
+        const { data: pend } = await sb.from("twitch_pending").select("id").eq("id", id).maybeSingle();
+        if (!pend) throw new HttpError(404, "Подключение не найдено, начни заново");
+        const d = await ttgStatus(id);
+        if (!d.success) return json(req, d.error === 3 ? { pending: true } : { expired: true });
+        const token = String(d.token ?? d.access_token ?? ""), refresh = String(d.refresh ?? d.refresh_token ?? "");
+        const v = token ? await twValidate(token) : null;
+        await sb.from("twitch_pending").delete().eq("id", id);
+        if (!v || !refresh) throw new HttpError(502, "Twitch не выдал разрешение, попробуй ещё раз");
+        if (!CHANNELS.includes(v.login)) throw new HttpError(403, `Разрешение выдал аккаунт ${v.login}, а нужен аккаунт канала (${CHANNELS.join(" или ")})`);
+        await sb.from("twitch_links").upsert({ channel: v.login, user_id: v.user_id, token, refresh, client_id: v.client_id,
+          expires_at: new Date(Date.now() + v.expires_in * 1000).toISOString(), updated_at: new Date().toISOString() });
+        const { data: s } = await sb.from("settings").select("direct").eq("id", 1).single();
+        await sb.from("settings").update({ direct: { ...(s?.direct ?? {}), [v.login]: true } }).eq("id", 1);
+        return json(req, { ok: true, channel: v.login });
+      }
+      case "tw_unlink": {
+        requireStreamer(u, ADMIN);
+        const ch = String(body.channel ?? "").toLowerCase();
+        await sb.from("twitch_links").delete().eq("channel", ch);
+        const { data: s } = await sb.from("settings").select("direct").eq("id", 1).single();
+        const dir = { ...(s?.direct ?? {}) }; delete dir[ch];
+        await sb.from("settings").update({ direct: dir }).eq("id", 1);
+        return json(req, { ok: true });
       }
       case "reward_unbind": { // отвязать награду канала, чтобы привязать другую
         const ch = String(body.channel ?? (u?.login && CHANNELS.includes(u.login) ? u.login : CHANNEL)).toLowerCase();

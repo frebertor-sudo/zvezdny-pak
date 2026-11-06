@@ -1510,7 +1510,7 @@ async function rest(path){
 async function liveLoadSet(){
   const [cards, sets] = await Promise.all([
     rest('cards?select=id,sort,name,flavor,rarity,img,tall&active=eq.true&order=sort.asc'),
-    rest('settings?select=odds,foil,pity,cost,reward_id,bridge_seen_at,channel,claim_until,follow_only,watch_minutes,watch_daily,channels,reward_ids&id=eq.1')
+    rest('settings?select=odds,foil,pity,cost,reward_id,bridge_seen_at,channel,claim_until,follow_only,watch_minutes,watch_daily,channels,reward_ids,direct&id=eq.1')
   ]);
   const s = sets[0] || {};
   CARDS = cards.map(c => ({id: c.id, name: c.name, flavor: c.flavor, r: c.rarity, img: c.img, tall: c.tall}));
@@ -1561,6 +1561,25 @@ async function pollFeed(first){
 }
 function bridgeOnline(){ return !!(LIVESET && LIVESET.bridge_seen_at) && Date.now() - Date.parse(LIVESET.bridge_seen_at) < 3 * 60 * 1000; }
 let BRIDGE_KEY = '';
+// подключить канал напрямую: разрешение «читать покупки наград» через twitchtokengenerator.com
+let twLinkTimer = null;
+async function twLink(ch){
+  const w = window.open('about:blank', '_blank'); // окно открываем сразу, иначе браузер заблокирует
+  try {
+    const d = await api('tw_link_start');
+    if (w) w.location.href = d.url; else location.href = d.url;
+    toast(`В новой вкладке войди аккаунтом ${ch} и нажми «Authorize»`);
+    clearInterval(twLinkTimer); const t0 = Date.now();
+    twLinkTimer = setInterval(async () => {
+      if (Date.now() - t0 > 6 * 60 * 1000){ clearInterval(twLinkTimer); toast('Время вышло — нажми «Подключить напрямую» ещё раз'); return; }
+      try {
+        const r = await api('tw_link_poll', {id: d.id});
+        if (r.ok){ clearInterval(twLinkTimer); toast(`Канал ${r.channel} подключён напрямую! Перезапусти оверлей в OBS`); await liveLoadSet(); renderLiveAdmin(); }
+        else if (r.expired){ clearInterval(twLinkTimer); toast('Ссылка устарела — нажми ещё раз'); }
+      } catch(e){ clearInterval(twLinkTimer); toast(e.message); }
+    }, 3000);
+  } catch(e){ if (w) w.close(); toast(e.message); }
+}
 function overlayUrl(withKey){
   const base = location.origin + location.pathname.replace(/[^/]*$/, '') + 'overlay.html';
   const k = BRIDGE_KEY || ADMIN_KEY;
@@ -1584,11 +1603,19 @@ function renderLiveAdmin(){
       <b>Мост чата:</b> ${online ? '<span style="color:#5fd68a">на связи</span>' : '<span style="color:#ffb35c">не запущен</span>'} — это оверлей в OBS со ссылкой ниже. Пока он открыт, зрители получают пакетики за награду. Входить на сайт можно и без него.<br><br>
       <b>Каналы сайта:</b> ${CHANNELS.map(c => `<b>${c}</b>`).join(', ')}. Зрители входят кодом из чата любого из них, коллекции общие.<br><br>
       <b>Награда «Звёздный пак» за баллы канала</b> (у каждого канала своя):<br>
-      ${CHANNELS.map(c => RW[c]
-        ? `✅ <b>${c}</b> — привязана <button class="cat" data-unbind="${c}">Отвязать</button>`
-        : `⏳ <b>${c}</b> — не привязана`).join('<br>')}<br>
-      <span class="lh" style="font-size:.85rem">Как привязать: создай на Twitch награду <b>«Звёздный пак»</b> с включённым «Попросить зрителя ввести текст» (нужны баллы канала — они есть у компаньонов и партнёров). При запущенном оверлее купи её сам на своём канале и напиши в поле: <b>привязать</b>.</span>`;
+      ${CHANNELS.map(c => {
+        const dir = !!(LIVESET && LIVESET.direct && LIVESET.direct[c]);
+        return `${RW[c] ? '✅' : '⏳'} <b>${c}</b> — ${RW[c] ? 'награда привязана' : 'награда не привязана'}${RW[c] ? ` <button class="cat" data-unbind="${c}">Отвязать</button>` : ''}<br>
+          &nbsp;&nbsp;&nbsp;${dir ? `⚡ прямые покупки подключены — текст в награде не нужен <button class="cat" data-tw-unlink="${c}">Отключить</button>`
+            : `<button class="pill sm" data-tw-link="${c}">Подключить напрямую</button> <span style="font-size:.85rem;opacity:.8">— покупки без поля для текста</span>`}`;
+      }).join('<br>')}<br>
+      <span class="lh" style="font-size:.85rem"><b>Напрямую (проще):</b> нажми «Подключить напрямую», в открывшейся вкладке войди в Twitch <b>аккаунтом этого канала</b> и разреши «читать покупки наград». Потом создай награду с названием <b>«Звёздный пак»</b> — поле для текста не нужно. Первая же покупка привяжет её сама. Нужен запущенный оверлей.<br>
+      <b>Через чат:</b> награда с включённым «Попросить зрителя ввести текст», привязка — купи её сам и напиши <b>привязать</b>.</span>`;
     $('admReward').hidden = true; $('admUnbind').hidden = true;
+    $('admLiveTxt').querySelectorAll('[data-tw-link]').forEach(b => b.addEventListener('click', () => twLink(b.dataset.twLink)));
+    $('admLiveTxt').querySelectorAll('[data-tw-unlink]').forEach(b => b.addEventListener('click', async () => {
+      try { await api('tw_unlink', {channel: b.dataset.twUnlink}); await liveLoadSet(); renderLiveAdmin(); toast('Прямые покупки отключены'); } catch(e){ toast(e.message); }
+    }));
     $('admLiveTxt').querySelectorAll('[data-unbind]').forEach(b => b.addEventListener('click', async () => {
       try { await api('reward_unbind', {channel: b.dataset.unbind}); await liveLoadSet(); renderLiveAdmin(); toast('Награда отвязана — привяжи новую'); } catch(e){ toast(e.message); }
     }));

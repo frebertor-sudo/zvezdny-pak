@@ -141,7 +141,51 @@ async function startBridge(key){
       else say(true, `мост: #${channel} · входов ${logins} · пакетиков ${packs}`);
     } catch(e){ queue.unshift(...events); say(false, 'мост: нет связи с сервером'); }
   }
-  connect();
+  /* ---- прямые покупки наград (EventSub): работает и без поля для текста в награде ---- */
+  const es = {}, esOk = {};
+  async function getLinks(){
+    const r = await fetch(`${URL_}/functions/v1/bridge`, {method: 'POST', headers: {...H(), 'Content-Type': 'application/json', 'x-bridge-key': key}, body: JSON.stringify({action: 'tokens'})});
+    if (!r.ok) return [];
+    return (await r.json()).links || [];
+  }
+  async function esStart(){
+    try { (await getLinks()).forEach(l => { if (!es[l.channel]) esConnect(l); else es[l.channel].link = l; }); } catch(e){}
+  }
+  function esConnect(link, url = 'wss://eventsub.wss.twitch.tv/ws', moving = false){
+    const c = {link, alive: Date.now(), ws: new WebSocket(url)};
+    if (!moving) es[link.channel] = c;
+    c.ws.onmessage = async ev => {
+      let m; try { m = JSON.parse(ev.data); } catch(e){ return; }
+      c.alive = Date.now();
+      const t = m.metadata && m.metadata.message_type;
+      if (t === 'session_welcome'){
+        c.keep = ((m.payload.session.keepalive_timeout_seconds || 10) + 15) * 1000;
+        if (moving){ const old = es[link.channel]; es[link.channel] = c; if (old && old !== c) try { old.ws.close(); } catch(e){} return; } // подписка переехала сама
+        const r = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {method: 'POST',
+          headers: {Authorization: 'Bearer ' + c.link.token, 'Client-Id': c.link.client_id, 'Content-Type': 'application/json'},
+          body: JSON.stringify({type: 'channel.channel_points_custom_reward_redemption.add', version: '1', condition: {broadcaster_user_id: c.link.user_id}, transport: {method: 'websocket', session_id: m.payload.session.id}})}).catch(() => null);
+        esOk[link.channel] = !!(r && r.ok);
+        if (r && r.status === 401){ try { c.ws.close(); } catch(e){} } // токен устарел — переподключимся с новым
+        say(true, `мост: ${channel} · прямые награды: ${Object.keys(esOk).filter(k => esOk[k]).join(', ') || 'нет'}`);
+      } else if (t === 'notification' && m.payload && m.payload.event){
+        const e = m.payload.event;
+        queue.push({kind: 'redeem', user_id: e.user_id, login: e.user_login, name: e.user_name || e.user_login, text: String(e.user_input || '').slice(0, 200),
+          msg_id: e.id, reward_id: e.reward && e.reward.id, reward_title: e.reward && e.reward.title, channel: String(e.broadcaster_user_login || link.channel).toLowerCase()});
+      } else if (t === 'session_reconnect'){
+        esConnect(c.link, m.payload.session.reconnect_url, true);
+      }
+    };
+    c.ws.onclose = () => {
+      if (es[link.channel] !== c) return;
+      delete es[link.channel]; esOk[link.channel] = false;
+      setTimeout(esStart, 5000); // свежий токен и новое подключение
+    };
+    return c;
+  }
+  setInterval(() => { for (const ch in es){ const c = es[ch]; if (c.keep && Date.now() - c.alive > c.keep) try { c.ws.close(); } catch(e){} } }, 5000); // Twitch молчит — переподключаемся
+  setInterval(esStart, 20 * 60 * 1000); // подхватить новые подключённые каналы
+
+  connect(); esStart();
   setInterval(() => flush(false), 1500);
   flush(true); setInterval(() => flush(true), 60000); // «я на связи» для сайта
 }
