@@ -404,7 +404,8 @@ Deno.serve(async (req) => {
         if (!/^[a-z0-9]{20,}$/i.test(token) || !/^[a-z0-9]{20,}$/i.test(refresh)) throw new HttpError(400, "Вставь «Токен доступа» и «Токен обновления» целиком");
         const v = await twValidate(token);
         if (!v) throw new HttpError(400, "Twitch не принял токен — создай новый");
-        if (!v.scopes.includes("channel:read:redemptions")) throw new HttpError(400, "У токена нет разрешения channel:read:redemptions — отметь его при создании");
+        if (!v.scopes.some((x) => x === "channel:read:redemptions" || x === "channel:manage:redemptions")) // для покупок наград Twitch принимает любое из двух
+          throw new HttpError(400, `У токена нет разрешения channel:read:redemptions — отметь его при создании (сейчас: ${v.scopes.join(", ") || "никаких"})`);
         if (!CHANNELS.includes(v.login)) throw new HttpError(403, `Токен от аккаунта ${v.login}, а нужен аккаунт канала (${CHANNELS.join(" или ")})`);
         await sb.from("twitch_links").upsert({ channel: v.login, user_id: v.user_id, token, refresh, client_id: v.client_id,
           expires_at: new Date(Date.now() + v.expires_in * 1000).toISOString(), updated_at: new Date().toISOString() });
