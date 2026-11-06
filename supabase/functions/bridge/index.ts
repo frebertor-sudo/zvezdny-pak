@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
         }
         const r = await sb.rpc("add_packs", { p_uid: uid, p_login: login, p_name: name, p_n: 1 });
         if (r.error) await sb.from("redemptions").delete().eq("id", "es:" + e.msg_id);
-        else out.packs++;
+        else { out.packs++; await sb.from("pack_events").insert({ login, n: 1, source: "reward" }); } // сайт зрителя обновит счётчик сам
         continue;
       }
 
@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
         if (direct[ch] && await pairedWith(sb, "es:", uid)) continue; // эту же покупку уже засчитал EventSub // уже засчитано
         const r = await sb.rpc("add_packs", { p_uid: uid, p_login: login, p_name: name, p_n: 1 });
         if (r.error) await sb.from("redemptions").delete().eq("id", "irc:" + e.msg_id);
-        else out.packs++;
+        else { out.packs++; await sb.from("pack_events").insert({ login, n: 1, source: "reward" }); }
         continue;
       }
 

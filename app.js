@@ -1729,6 +1729,28 @@ $('dropStar').addEventListener('click', async () => {
   } catch(e){ toast(e.message); dropRemember(d.id); hideDrop(); }
 });
 
+/* пакетики за награду: сервер оставляет отметку, сайт сразу прибавляет счётчик */
+let PE = {login: '', last: null};
+async function pollPacks(){
+  if (!LIVE || !USER || USER.demo || document.hidden) return;
+  const L = encodeURIComponent(USER.login);
+  try {
+    if (PE.login !== USER.login || PE.last === null){
+      const r = await rest(`pack_events?select=id&login=eq.${L}&order=id.desc&limit=1`);
+      PE = {login: USER.login, last: r[0] ? r[0].id : 0}; return;
+    }
+    const rows = await rest(`pack_events?select=id,n,source&login=eq.${L}&id=gt.${PE.last}&order=id.asc&limit=20`);
+    if (!rows.length) return;
+    PE.last = rows[rows.length - 1].id;
+    const n = rows.reduce((a, r) => a + (r.n || 0), 0);
+    S.packs = (S.packs || 0) + n; renderTop();
+    const chip = $('bal').parentElement; chip.classList.remove('bump'); void chip.offsetWidth; chip.classList.add('bump');
+    toast(rows.some(r => r.source === 'grant') ? `Стример выдал тебе пакетики: +${n}` : `+${n} ${n > 1 ? 'пакетика' : 'пакетик'} за награду «Звёздный пак»!`);
+    beep(784, .12, .05); setTimeout(() => beep(1046, .2, .05), 110);
+    if (packState === 'sealed') setTimeout(liveMe, 1200); // сверяемся с сервером
+  } catch(_){}
+}
+
 async function liveBoot(){
   // интерфейс под настоящие пакетики
   const balChip = $('bal').parentElement;
@@ -1753,7 +1775,8 @@ async function liveBoot(){
   setInterval(() => pollFeed(false), 4000);
   $('liveGrid').hidden = false; $('demoScreen').hidden = true;
   setTimeout(watchPing, 2500); setInterval(watchPing, 60000); // пакетик за просмотр
-  pollDrops(); setInterval(pollDrops, 5000); document.addEventListener('visibilitychange', () => { if (!document.hidden) pollDrops(); });
+  pollDrops(); setInterval(pollDrops, 5000); document.addEventListener('visibilitychange', () => { if (!document.hidden){ pollDrops(); pollPacks(); } });
+  pollPacks(); setInterval(pollPacks, 4000); // пакетики за награду появляются сразу
   setInterval(() => { if (USER && !document.hidden && packState === 'sealed') liveMe(); }, 30000); // пакетики, купленные на стриме
 }
 
