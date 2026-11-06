@@ -1607,12 +1607,21 @@ function renderLiveAdmin(){
         const dir = !!(LIVESET && LIVESET.direct && LIVESET.direct[c]);
         return `${RW[c] ? '✅' : '⏳'} <b>${c}</b> — ${RW[c] ? 'награда привязана' : 'награда не привязана'}${RW[c] ? ` <button class="cat" data-unbind="${c}">Отвязать</button>` : ''}<br>
           &nbsp;&nbsp;&nbsp;${dir ? `⚡ прямые покупки подключены — текст в награде не нужен <button class="cat" data-tw-unlink="${c}">Отключить</button>`
-            : `<button class="pill sm" data-tw-link="${c}">Подключить напрямую</button> <span style="font-size:.85rem;opacity:.8">— покупки без поля для текста</span>`}`;
+            : `<button class="pill sm" data-tw-link="${c}">Подключить напрямую</button> <span style="font-size:.85rem;opacity:.8">— покупки без поля для текста</span>
+              <button class="linkbtn" data-tw-manual="${c}">или вставить токены вручную</button>
+              <span class="twman" data-tw-form="${c}" hidden><br>&nbsp;&nbsp;&nbsp;<input type="password" placeholder="Токен доступа" data-tw-tok autocomplete="off" style="max-width:200px">
+              <input type="password" placeholder="Токен обновления" data-tw-ref autocomplete="off" style="max-width:200px"> <button class="cat" data-tw-save="${c}">Сохранить</button></span>`}`;
       }).join('<br>')}<br>
       <span class="lh" style="font-size:.85rem"><b>Напрямую (проще):</b> нажми «Подключить напрямую», в открывшейся вкладке войди в Twitch <b>аккаунтом этого канала</b> и разреши «читать покупки наград». Потом создай награду с названием <b>«Звёздный пак»</b> — поле для текста не нужно. Первая же покупка привяжет её сама. Нужен запущенный оверлей.<br>
       <b>Через чат:</b> награда с включённым «Попросить зрителя ввести текст», привязка — купи её сам и напиши <b>привязать</b>.</span>`;
     $('admReward').hidden = true; $('admUnbind').hidden = true;
     $('admLiveTxt').querySelectorAll('[data-tw-link]').forEach(b => b.addEventListener('click', () => twLink(b.dataset.twLink)));
+    $('admLiveTxt').querySelectorAll('[data-tw-manual]').forEach(b => b.addEventListener('click', () => { const f = $('admLiveTxt').querySelector(`[data-tw-form="${b.dataset.twManual}"]`); f.hidden = !f.hidden; }));
+    $('admLiveTxt').querySelectorAll('[data-tw-save]').forEach(b => b.addEventListener('click', async () => {
+      const f = b.parentElement, token = f.querySelector('[data-tw-tok]').value.trim(), refresh = f.querySelector('[data-tw-ref]').value.trim();
+      if (!token || !refresh) return toast('Вставь оба токена');
+      try { const r = await api('tw_link_manual', {token, refresh}); toast(`Канал ${r.channel} подключён напрямую! Обнови оверлей в OBS`); await liveLoadSet(); renderLiveAdmin(); } catch(e){ toast(e.message); }
+    }));
     $('admLiveTxt').querySelectorAll('[data-tw-unlink]').forEach(b => b.addEventListener('click', async () => {
       try { await api('tw_unlink', {channel: b.dataset.twUnlink}); await liveLoadSet(); renderLiveAdmin(); toast('Прямые покупки отключены'); } catch(e){ toast(e.message); }
     }));

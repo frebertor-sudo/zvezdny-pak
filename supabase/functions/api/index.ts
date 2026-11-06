@@ -398,6 +398,20 @@ Deno.serve(async (req) => {
         await sb.from("settings").update({ direct: { ...(s?.direct ?? {}), [v.login]: true } }).eq("id", 1);
         return json(req, { ok: true, channel: v.login });
       }
+      case "tw_link_manual": { // запасной путь: стример вставил токены со страницы twitchtokengenerator сам
+        requireStreamer(u, ADMIN);
+        const token = String(body.token ?? "").trim().replace(/^oauth:/i, ""), refresh = String(body.refresh ?? "").trim();
+        if (!/^[a-z0-9]{20,}$/i.test(token) || !/^[a-z0-9]{20,}$/i.test(refresh)) throw new HttpError(400, "Вставь «Токен доступа» и «Токен обновления» целиком");
+        const v = await twValidate(token);
+        if (!v) throw new HttpError(400, "Twitch не принял токен — создай новый");
+        if (!v.scopes.includes("channel:read:redemptions")) throw new HttpError(400, "У токена нет разрешения channel:read:redemptions — отметь его при создании");
+        if (!CHANNELS.includes(v.login)) throw new HttpError(403, `Токен от аккаунта ${v.login}, а нужен аккаунт канала (${CHANNELS.join(" или ")})`);
+        await sb.from("twitch_links").upsert({ channel: v.login, user_id: v.user_id, token, refresh, client_id: v.client_id,
+          expires_at: new Date(Date.now() + v.expires_in * 1000).toISOString(), updated_at: new Date().toISOString() });
+        const { data: s } = await sb.from("settings").select("direct").eq("id", 1).single();
+        await sb.from("settings").update({ direct: { ...(s?.direct ?? {}), [v.login]: true } }).eq("id", 1);
+        return json(req, { ok: true, channel: v.login });
+      }
       case "tw_unlink": {
         requireStreamer(u, ADMIN);
         const ch = String(body.channel ?? "").toLowerCase();
