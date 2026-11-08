@@ -1007,7 +1007,8 @@ $('stage').addEventListener('pointerleave', () => { const i = $('stage').querySe
 
 $('open').addEventListener('click', onOpenBtn);
 const sndBtn = () => { $('snd').textContent = 'Звук: ' + (sound ? 'вкл' : 'выкл'); $('snd').setAttribute('aria-pressed', sound); };
-$('snd').addEventListener('click', () => { sound = !sound; if (!sound && window._ufoHumStop) window._ufoHumStop(); try { localStorage.setItem('zvezdny-sound', sound ? '1' : '0'); } catch(e){} sndBtn(); if (sound) beep(660, .12, .05); });
+$('snd').addEventListener('click', () => { sound = !sound;
+  if (!sound){ if (window._ufoHumStop) window._ufoHumStop(); setTimeout(() => { if (!sound && AC && AC.state === 'running') AC.suspend().catch(() => {}); }, 400); } /* выключили — останавливаем всё аудио целиком */ try { localStorage.setItem('zvezdny-sound', sound ? '1' : '0'); } catch(e){} sndBtn(); if (sound) beep(660, .12, .05); });
 sndBtn();
 $('earn').addEventListener('click', () => { S.bal += 5000; save(); renderTop(); toast('+5 000 баллов за просмотр'); });
 $('reset').addEventListener('click', () => { if (busy || ['tearing','auto','waiting','pull'].includes(packState)) return; S = fresh(); recent = []; renderRecent(); save(); renderAll(); spawnPack(); toast('Демо сброшено'); });
@@ -1065,7 +1066,9 @@ if (!LIVE){
   const el = $('ufo'); let st = null, humNode = null;
   const humStop = () => { // гул затихает, как только НЛО поймали или оно улетело
     const h = humNode; humNode = null; if (!h || !AC) return;
-    try { const now = AC.currentTime; h.g.gain.cancelScheduledValues(now); h.g.gain.setValueAtTime(h.g.gain.value, now); h.g.gain.linearRampToValueAtTime(0, now + .25); h.o.stop(now + .3); h.l.stop(now + .3); } catch(e){}
+    // мягко гасим без чтения текущей громкости (браузер отдаёт её с задержкой — отсюда «запинка»), потом отключаем узлы
+    try { const now = AC.currentTime; h.g.gain.cancelScheduledValues(now); h.g.gain.setTargetAtTime(0, now, .04); } catch(e){}
+    setTimeout(() => { try { h.o.disconnect(); h.l.disconnect(); h.g.disconnect(); } catch(e){} }, 350);
   };
   const hum = (dur) => { // тихий «инопланетный» гул
     humStop();
