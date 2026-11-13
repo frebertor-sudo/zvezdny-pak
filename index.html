@@ -1,282 +1,233 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#070d0a">
-<title>Звёздный пак</title>
-<meta name="description" content="Карточки канала за баллы Twitch: открывай пакетики, собирай коллекцию.">
-<link rel="icon" href="img/smug.webp">
-<link rel="stylesheet" href="style.css?v=202611082121">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>КЛЁВОЕ МЕСТО — рыбалка онлайн</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik+Bubbles&family=Rubik+Wet+Paint&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:"Comic Sans MS","Comic Sans",cursive,sans-serif;
+  color:#fff700;text-align:center;overflow-x:hidden;
+  background:#001a66 repeating-linear-gradient(45deg,#0033cc 0 20px,#0044ff 20px 40px);
+  min-height:100vh;padding-bottom:40px;
+}
+.marq{background:#ff00aa;color:#fff;font-weight:bold;white-space:nowrap;overflow:hidden;border-bottom:4px dashed #fff700;padding:6px 0;font-size:18px}
+.marq span{display:inline-block;padding-left:100%;animation:run 16s linear infinite}
+@keyframes run{to{transform:translateX(-100%)}}
+h1{
+  font-family:"Rubik Wet Paint","Rubik Bubbles",cursive;font-weight:400;
+  font-size:clamp(40px,11vw,110px);margin:18px 8px 0;line-height:.95;
+  background:linear-gradient(90deg,#ff0000,#ff9900,#fff700,#00ff3c,#00e5ff,#ff00ea,#ff0000);
+  background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:rainbow 3s linear infinite, wobble 1.2s ease-in-out infinite alternate;
+  filter:drop-shadow(4px 4px 0 #000);
+}
+@keyframes rainbow{to{background-position:300% 0}}
+@keyframes wobble{from{transform:rotate(-2deg) scale(1)}to{transform:rotate(2deg) scale(1.04)}}
+.sub{font-size:clamp(15px,3.5vw,22px);color:#00ff3c;text-shadow:2px 2px 0 #000;margin:6px 10px 14px}
+.blink{animation:blink .7s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.wrap{max-width:760px;margin:0 auto;padding:0 12px}
+.pond{
+  position:relative;height:300px;border:8px ridge #fff700;border-radius:24px;overflow:hidden;
+  background:linear-gradient(#7ee8ff 0 38%,#00a2ff 38% 40%,#0066dd 40%,#002a80);
+  box-shadow:0 0 0 6px #ff00aa,0 0 40px #00e5ff;
+}
+.sun{position:absolute;top:10px;right:18px;font-size:54px;animation:spin 6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dude{position:absolute;left:8px;top:42px;font-size:64px;transform:scaleX(-1)}
+.line{position:absolute;left:70px;top:70px;width:3px;background:#fff;transform-origin:top;height:0;transition:height .5s}
+.bob{position:absolute;left:50%;top:104px;font-size:38px;transform:translateX(-50%);opacity:0;transition:opacity .3s}
+.pond.wait .bob{opacity:1;animation:bob 1.4s ease-in-out infinite}
+.pond.bite .bob{opacity:1;animation:yank .15s linear infinite}
+@keyframes bob{50%{transform:translate(-50%,8px) rotate(8deg)}}
+@keyframes yank{50%{transform:translate(-50%,26px) rotate(-25deg)}}
+.swim{position:absolute;font-size:34px;animation:swim linear infinite}
+@keyframes swim{from{left:105%}to{left:-15%}}
+.swim.r{transform:scaleX(-1);animation-name:swimr}
+@keyframes swimr{from{left:-15%}to{left:105%}}
+.msg{
+  position:absolute;left:0;right:0;bottom:10px;margin:0 10px;padding:8px;
+  background:rgba(0,0,0,.6);border:3px dotted #00ff3c;border-radius:12px;
+  font-size:clamp(15px,3.6vw,20px);color:#fff;min-height:46px
+}
+.pond.bite{animation:shake .12s linear infinite}
+@keyframes shake{25%{transform:translate(-5px,3px)}75%{transform:translate(5px,-3px)}}
+.alarm{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+  font-family:"Rubik Bubbles",cursive;font-size:clamp(46px,13vw,100px);color:#ff0000;
+  text-shadow:4px 4px 0 #fff700,-4px -4px 0 #000;pointer-events:none}
+.pond.bite .alarm{display:flex;animation:blink .2s steps(2) infinite}
+button{font-family:inherit;cursor:pointer}
+#go{
+  margin:22px auto 6px;display:block;width:min(100%,460px);padding:18px 10px;
+  font-family:"Rubik Bubbles",cursive;font-size:clamp(26px,7vw,44px);color:#fff;
+  background:linear-gradient(#ff5a00,#ff0055);border:6px outset #fff700;border-radius:999px;
+  text-shadow:3px 3px 0 #000;box-shadow:0 8px 0 #7a0030;animation:pulse 1s ease-in-out infinite alternate;
+}
+#go:active{transform:translateY(6px);box-shadow:0 2px 0 #7a0030}
+#go.hot{background:linear-gradient(#00ff3c,#00a030);animation:pulse .15s linear infinite alternate}
+@keyframes pulse{to{transform:scale(1.05)}}
+.hint{font-size:14px;color:#fff;opacity:.85}
+.stats{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:18px 0}
+.stat{background:#000;border:4px double #00e5ff;padding:8px 14px;border-radius:10px;min-width:130px}
+.stat b{display:block;font-size:26px;color:#00ff3c;font-variant-numeric:tabular-nums}
+.stat small{color:#ff9bf0}
+.card{
+  margin:16px auto;padding:14px;border-radius:18px;border:6px groove #ff00aa;
+  background:#fff700;color:#1a0044;transform:rotate(-1.5deg);display:none
+}
+.card.show{display:block;animation:pop .45s cubic-bezier(.2,2,.4,1)}
+@keyframes pop{from{transform:scale(0) rotate(-40deg)}to{transform:scale(1) rotate(-1.5deg)}}
+.card .big{font-size:84px;line-height:1;display:inline-block;animation:wobble .5s ease-in-out infinite alternate}
+.card h2{font-family:"Rubik Bubbles",cursive;font-weight:400;font-size:clamp(24px,6vw,38px);margin:4px 0}
+.card p{margin:4px 0;font-size:17px}
+.rare{color:#d4006a;font-weight:bold}
+h3{font-family:"Rubik Bubbles",cursive;font-weight:400;font-size:28px;color:#00e5ff;text-shadow:3px 3px 0 #000;margin:22px 0 8px}
+#bag{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;min-height:50px;
+  background:rgba(0,0,0,.45);border:4px dashed #fff700;border-radius:14px;padding:10px}
+#bag span{font-size:30px;cursor:default}
+#bag em{font-style:normal;color:#fff;opacity:.8;align-self:center}
+#reset{margin-top:10px;background:#000;color:#ff9bf0;border:2px solid #ff9bf0;border-radius:8px;padding:6px 12px;font-size:14px}
+footer{margin-top:28px;font-size:14px;color:#fff}
+footer .c{display:inline-block;background:#000;color:#00ff3c;font-family:monospace;padding:2px 8px;border:2px inset #888;letter-spacing:3px}
+.construction{display:inline-block;margin:10px;padding:6px 12px;font-weight:bold;color:#000;
+  background:repeating-linear-gradient(45deg,#fff700 0 12px,#000 12px 24px);border-radius:6px}
+.construction i{background:#fff700;padding:2px 8px;font-style:normal}
+@media (prefers-reduced-motion:reduce){*{animation-duration:0s!important;animation-iteration-count:1!important}}
+</style>
 </head>
 <body>
-<div class="bg" aria-hidden="true"><i class="moon"></i><svg class="forest" viewBox="0 0 1600 400" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><defs><linearGradient id="mist" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fe3b5" stop-opacity="0"/><stop offset=".6" stop-color="#9fe3b5" stop-opacity=".09"/><stop offset="1" stop-color="#9fe3b5" stop-opacity="0"/></linearGradient></defs><path d="M0 400 L0 300 L0 300 L0 300 L7 264 L3 264 L11 231 L7 231 L19 198 L30 231 L26 231 L34 264 L30 264 L37 300 L29 291 L29 291 L37 250 L32 250 L42 210 L38 210 L51 172 L64 210 L60 210 L69 250 L65 250 L73 291 L54 292 L54 292 L59 248 L56 248 L62 207 L59 207 L68 167 L76 207 L73 207 L79 248 L76 248 L81 292 L70 283 L70 283 L77 229 L73 229 L82 177 L78 177 L90 127 L102 177 L98 177 L107 229 L103 229 L110 283 L94 278 L94 278 L102 220 L97 220 L108 165 L103 165 L117 112 L132 165 L127 165 L137 220 L132 220 L141 278 L129 276 L129 276 L140 243 L134 243 L147 212 L141 212 L159 182 L177 212 L171 212 L184 243 L178 243 L188 276 L180 272 L180 272 L185 237 L182 237 L189 204 L186 204 L195 172 L204 204 L201 204 L208 237 L205 237 L211 272 L200 278 L200 278 L206 230 L203 230 L210 185 L206 185 L216 141 L226 185 L222 185 L230 230 L226 230 L232 278 L225 275 L225 275 L233 242 L228 242 L238 211 L234 211 L247 180 L261 211 L256 211 L266 242 L261 242 L269 275 L250 269 L250 269 L259 226 L254 226 L265 185 L260 185 L275 145 L290 185 L285 185 L295 226 L291 226 L299 269 L283 271 L283 271 L290 231 L286 231 L295 194 L291 194 L303 157 L316 194 L312 194 L321 231 L317 231 L324 271 L317 275 L317 275 L323 228 L320 228 L327 183 L324 183 L334 139 L344 183 L341 183 L349 228 L345 228 L351 275 L342 283 L342 283 L351 243 L346 243 L357 206 L352 206 L368 170 L383 206 L378 206 L389 243 L384 243 L393 283 L388 275 L388 275 L395 222 L391 222 L400 173 L396 173 L408 124 L420 173 L416 173 L425 222 L421 222 L428 275 L412 275 L412 275 L417 225 L414 225 L420 177 L417 177 L425 131 L434 177 L431 177 L437 225 L434 225 L439 275 L434 276 L434 276 L444 236 L439 236 L451 198 L445 198 L462 161 L479 198 L473 198 L485 236 L480 236 L490 276 L478 278 L478 278 L487 234 L482 234 L492 192 L488 192 L501 152 L515 192 L510 192 L520 234 L516 234 L524 278 L517 287 L517 287 L525 237 L520 237 L530 190 L525 190 L538 144 L551 190 L546 190 L556 237 L551 237 L559 287 L541 291 L541 291 L550 232 L545 232 L555 176 L551 176 L565 122 L579 176 L575 176 L585 232 L580 232 L589 291 L581 287 L581 287 L588 237 L584 237 L593 189 L589 189 L601 143 L613 189 L609 189 L617 237 L613 237 L620 287 L603 286 L603 286 L609 251 L606 251 L613 218 L609 218 L619 187 L628 218 L625 218 L632 251 L629 251 L635 286 L621 291 L621 291 L627 253 L624 253 L630 217 L627 217 L636 182 L645 217 L642 217 L649 253 L646 253 L652 291 L642 299 L642 299 L647 255 L644 255 L651 213 L648 213 L656 173 L665 213 L662 213 L668 255 L666 255 L671 299 L663 306 L663 306 L673 251 L668 251 L680 198 L674 198 L690 147 L706 198 L701 198 L713 251 L708 251 L717 306 L698 305 L698 305 L705 249 L701 249 L710 195 L706 195 L717 144 L729 195 L725 195 L733 249 L730 249 L736 305 L732 298 L732 298 L738 260 L735 260 L742 224 L738 224 L748 189 L758 224 L754 224 L761 260 L758 260 L764 298 L752 298 L752 298 L761 259 L756 259 L766 222 L761 222 L775 186 L789 222 L784 222 L795 259 L790 259 L798 298 L778 296 L778 296 L785 249 L781 249 L789 204 L785 204 L797 161 L808 204 L805 204 L813 249 L809 249 L816 296 L812 300 L812 300 L820 251 L815 251 L825 205 L820 205 L833 160 L847 205 L842 205 L852 251 L847 251 L855 300 L846 291 L846 291 L856 237 L850 237 L863 187 L857 187 L874 138 L891 187 L886 187 L898 237 L892 237 L903 291 L894 297 L894 297 L901 254 L898 254 L906 214 L902 214 L914 175 L926 214 L922 214 L931 254 L927 254 L934 297 L917 299 L917 299 L923 266 L920 266 L926 235 L923 235 L932 204 L940 235 L937 235 L943 266 L940 266 L946 299 L935 293 L935 293 L942 260 L938 260 L946 229 L942 229 L954 198 L965 229 L961 229 L970 260 L966 260 L973 293 L956 286 L956 286 L961 244 L958 244 L964 205 L962 205 L970 167 L979 205 L976 205 L983 244 L980 244 L985 286 L972 293 L972 293 L981 258 L976 258 L986 224 L981 224 L996 191 L1010 224 L1005 224 L1015 258 L1011 258 L1019 293 L1002 290 L1002 290 L1009 255 L1005 255 L1014 222 L1010 222 L1021 190 L1033 222 L1029 222 L1037 255 L1033 255 L1040 290 L1035 300 L1035 300 L1042 255 L1038 255 L1047 212 L1043 212 L1055 171 L1068 212 L1064 212 L1073 255 L1069 255 L1076 300 L1059 292 L1059 292 L1066 253 L1062 253 L1070 216 L1066 216 L1078 181 L1089 216 L1085 216 L1093 253 L1090 253 L1096 292 L1090 285 L1090 285 L1095 227 L1093 227 L1098 172 L1096 172 L1104 119 L1112 172 L1109 172 L1115 227 L1112 227 L1117 285 L1110 278 L1110 278 L1118 246 L1114 246 L1123 216 L1119 216 L1132 186 L1146 216 L1141 216 L1151 246 L1147 246 L1155 278 L1143 288 L1143 288 L1153 237 L1147 237 L1159 189 L1154 189 L1170 142 L1187 189 L1182 189 L1194 237 L1188 237 L1198 288 L1178 285 L1178 285 L1184 232 L1181 232 L1188 182 L1185 182 L1194 133 L1204 182 L1200 182 L1207 232 L1204 232 L1210 285 L1202 291 L1202 291 L1208 253 L1205 253 L1213 217 L1209 217 L1220 183 L1231 217 L1228 217 L1236 253 L1232 253 L1239 291 L1233 300 L1233 300 L1243 246 L1237 246 L1249 195 L1244 195 L1260 146 L1277 195 L1271 195 L1283 246 L1278 246 L1288 300 L1279 305 L1279 305 L1285 259 L1281 259 L1289 216 L1285 216 L1295 174 L1306 216 L1302 216 L1310 259 L1306 259 L1312 305 L1301 296 L1301 296 L1306 256 L1304 256 L1309 219 L1307 219 L1315 183 L1323 219 L1320 219 L1326 256 L1323 256 L1328 296 L1319 300 L1319 300 L1329 256 L1323 256 L1336 214 L1330 214 L1348 174 L1365 214 L1360 214 L1372 256 L1367 256 L1377 300 L1370 309 L1370 309 L1381 268 L1375 268 L1388 228 L1382 228 L1399 190 L1417 228 L1411 228 L1424 268 L1418 268 L1428 309 L1407 304 L1407 304 L1413 267 L1409 267 L1417 232 L1413 232 L1423 198 L1433 232 L1430 232 L1437 267 L1433 267 L1439 304 L1432 312 L1432 312 L1442 267 L1436 267 L1448 225 L1443 225 L1459 184 L1475 225 L1470 225 L1482 267 L1477 267 L1486 312 L1474 318 L1474 318 L1479 268 L1477 268 L1483 221 L1480 221 L1489 175 L1497 221 L1495 221 L1501 268 L1498 268 L1503 318 L1499 324 L1499 324 L1509 279 L1504 279 L1515 236 L1510 236 L1525 195 L1541 236 L1535 236 L1547 279 L1542 279 L1551 324 L1531 329 L1531 329 L1538 275 L1534 275 L1542 225 L1538 225 L1550 175 L1561 225 L1557 225 L1565 275 L1562 275 L1568 329 L1564 327 L1564 327 L1571 269 L1567 269 L1576 215 L1572 215 L1584 162 L1596 215 L1592 215 L1601 269 L1597 269 L1604 327 L1596 321 L1596 321 L1601 285 L1598 285 L1605 251 L1602 251 L1611 219 L1620 251 L1617 251 L1624 285 L1621 285 L1626 321 L1600 327 L1600 400 Z" fill="#10261a" opacity="0.95"/><rect x="0" y="200" width="1600" height="160" fill="url(#mist)"/><path d="M0 400 L0 330 L0 330 L0 330 L7 263 L3 263 L12 199 L8 199 L19 137 L31 199 L27 199 L36 263 L32 263 L39 330 L35 333 L35 333 L43 275 L38 275 L49 220 L44 220 L58 168 L72 220 L68 220 L78 275 L73 275 L82 333 L63 325 L63 325 L76 264 L69 264 L85 206 L78 206 L100 150 L122 206 L114 206 L131 264 L123 264 L137 325 L117 332 L117 332 L126 263 L121 263 L132 198 L127 198 L142 135 L158 198 L153 198 L164 263 L159 263 L168 332 L160 327 L160 327 L167 278 L163 278 L173 232 L168 232 L181 188 L194 232 L190 232 L199 278 L195 278 L203 327 L187 328 L187 328 L195 275 L191 275 L200 225 L196 225 L209 177 L222 225 L218 225 L227 275 L223 275 L231 328 L213 335 L213 335 L222 280 L217 280 L227 229 L223 229 L237 179 L251 229 L246 229 L257 280 L252 280 L261 335 L249 341 L249 341 L258 271 L253 271 L264 204 L259 204 L274 140 L289 204 L284 204 L295 271 L290 271 L299 341 L285 342 L285 342 L295 303 L290 303 L302 266 L296 266 L313 230 L329 266 L324 266 L336 303 L330 303 L340 342 L324 337 L324 337 L330 270 L327 270 L334 208 L331 208 L340 147 L350 208 L347 208 L354 270 L351 270 L357 337 L344 336 L344 336 L355 279 L349 279 L363 224 L357 224 L376 171 L395 224 L388 224 L402 279 L396 279 L407 336 L386 337 L386 337 L396 271 L390 271 L403 209 L397 209 L414 148 L431 209 L425 209 L438 271 L432 271 L442 337 L419 338 L419 338 L427 290 L422 290 L432 244 L428 244 L440 200 L453 244 L449 244 L459 290 L454 290 L462 338 L454 338 L454 338 L464 273 L459 273 L471 211 L466 211 L482 152 L499 211 L494 211 L506 273 L500 273 L511 338 L503 337 L503 337 L514 281 L508 281 L521 228 L515 228 L533 176 L550 228 L544 228 L557 281 L551 281 L562 337 L546 340 L546 340 L555 283 L550 283 L561 229 L556 229 L572 177 L587 229 L582 229 L594 283 L588 283 L598 340 L583 347 L583 347 L594 278 L588 278 L602 213 L595 213 L614 149 L633 213 L627 213 L640 278 L634 278 L645 347 L638 343 L638 343 L648 272 L642 272 L655 204 L649 204 L666 139 L683 204 L677 204 L690 272 L684 272 L694 343 L685 337 L685 337 L692 283 L688 283 L697 233 L693 233 L704 183 L715 233 L712 233 L720 283 L716 283 L723 337 L707 333 L707 333 L713 271 L710 271 L718 213 L714 213 L725 156 L735 213 L732 213 L740 271 L736 271 L743 333 L736 340 L736 340 L743 276 L739 276 L748 216 L744 216 L756 158 L768 216 L764 216 L772 276 L768 276 L775 340 L767 334 L767 334 L779 262 L772 262 L788 193 L781 193 L802 127 L823 193 L816 193 L831 262 L824 262 L837 334 L811 341 L811 341 L820 286 L815 286 L826 233 L821 233 L835 182 L850 233 L845 233 L856 286 L851 286 L860 341 L855 347 L855 347 L862 293 L858 293 L867 242 L863 242 L875 193 L887 242 L883 242 L891 293 L887 293 L894 347 L884 344 L884 344 L891 294 L887 294 L896 247 L892 247 L904 202 L916 247 L912 247 L921 294 L917 294 L925 344 L917 336 L917 336 L927 282 L921 282 L933 231 L928 231 L945 182 L961 231 L956 231 L968 282 L963 282 L973 336 L948 334 L948 334 L958 277 L952 277 L965 224 L960 224 L977 172 L995 224 L989 224 L1002 277 L996 277 L1007 334 L982 341 L982 341 L993 269 L987 269 L1001 200 L995 200 L1015 134 L1034 200 L1028 200 L1042 269 L1036 269 L1048 341 L1020 338 L1020 338 L1026 272 L1023 272 L1030 210 L1027 210 L1037 150 L1048 210 L1044 210 L1052 272 L1048 272 L1054 338 L1042 332 L1042 332 L1051 261 L1046 261 L1057 195 L1052 195 L1068 130 L1083 195 L1078 195 L1089 261 L1084 261 L1093 332 L1084 328 L1084 328 L1091 257 L1088 257 L1096 190 L1092 190 L1104 126 L1116 190 L1112 190 L1120 257 L1116 257 L1123 328 L1114 331 L1114 331 L1120 290 L1117 290 L1124 252 L1121 252 L1132 215 L1143 252 L1139 252 L1147 290 L1143 290 L1150 331 L1142 330 L1142 330 L1149 258 L1145 258 L1153 191 L1149 191 L1160 126 L1171 191 L1167 191 L1175 258 L1171 258 L1178 330 L1170 335 L1170 335 L1176 266 L1173 266 L1181 202 L1177 202 L1188 139 L1199 202 L1195 202 L1203 266 L1199 266 L1206 335 L1190 340 L1190 340 L1200 290 L1195 290 L1206 243 L1201 243 L1216 196 L1232 243 L1227 243 L1238 290 L1233 290 L1242 340 L1229 347 L1229 347 L1237 304 L1232 304 L1242 264 L1238 264 L1251 224 L1264 264 L1260 264 L1269 304 L1265 304 L1273 347 L1261 343 L1261 343 L1268 299 L1264 299 L1272 257 L1269 257 L1280 217 L1291 257 L1287 257 L1295 299 L1292 299 L1298 343 L1282 338 L1282 338 L1291 289 L1286 289 L1296 243 L1291 243 L1305 198 L1319 243 L1314 243 L1324 289 L1320 289 L1328 338 L1320 335 L1320 335 L1329 290 L1324 290 L1336 248 L1330 248 L1346 207 L1363 248 L1357 248 L1369 290 L1364 290 L1373 335 L1356 327 L1356 327 L1363 288 L1359 288 L1369 251 L1364 251 L1377 216 L1390 251 L1386 251 L1395 288 L1391 288 L1399 327 L1391 328 L1391 328 L1398 273 L1394 273 L1403 221 L1399 221 L1411 171 L1423 221 L1419 221 L1428 273 L1424 273 L1431 328 L1426 322 L1426 322 L1438 268 L1431 268 L1446 218 L1440 218 L1460 169 L1480 218 L1473 218 L1488 268 L1481 268 L1493 322 L1475 327 L1475 327 L1484 271 L1479 271 L1490 218 L1485 218 L1499 166 L1514 218 L1509 218 L1520 271 L1515 271 L1524 327 L1514 335 L1514 335 L1522 267 L1517 267 L1528 203 L1523 203 L1537 142 L1551 203 L1547 203 L1557 267 L1552 267 L1561 335 L1551 337 L1551 337 L1560 286 L1555 286 L1566 239 L1561 239 L1576 192 L1591 239 L1586 239 L1597 286 L1592 286 L1601 337 L1579 331 L1579 331 L1586 267 L1582 267 L1590 206 L1587 206 L1597 147 L1608 206 L1604 206 L1612 267 L1609 267 L1615 331 L1600 326 L1600 400 Z" fill="#0a1a11" opacity="1"/><path d="M0 400 L0 370 L0 370 L0 370 L8 286 L4 286 L14 207 L9 207 L23 131 L37 207 L32 207 L43 286 L38 286 L46 370 L39 360 L39 360 L50 303 L44 303 L57 250 L51 250 L68 199 L85 250 L79 250 L92 303 L86 303 L96 360 L77 360 L77 360 L86 294 L81 294 L92 232 L87 232 L102 172 L117 232 L112 232 L123 294 L118 294 L127 360 L109 360 L109 360 L126 290 L116 290 L137 223 L128 223 L156 159 L184 223 L175 223 L196 290 L186 290 L203 360 L169 360 L169 360 L179 298 L174 298 L186 240 L181 240 L198 184 L216 240 L210 240 L223 298 L217 298 L227 360 L201 359 L201 359 L213 290 L206 290 L221 226 L215 226 L235 163 L255 226 L248 226 L263 290 L256 290 L269 359 L243 359 L243 359 L250 301 L246 301 L255 247 L251 247 L264 194 L276 247 L272 247 L281 301 L277 301 L285 359 L267 357 L267 357 L275 311 L271 311 L280 267 L276 267 L289 225 L302 267 L298 267 L308 311 L303 311 L311 357 L296 354 L296 354 L309 285 L302 285 L318 219 L311 219 L333 155 L355 219 L347 219 L364 285 L356 285 L370 354 L356 356 L356 356 L370 271 L362 271 L380 190 L372 190 L396 112 L420 190 L412 190 L430 271 L422 271 L436 356 L411 354 L411 354 L428 302 L419 302 L440 252 L430 252 L459 205 L487 252 L478 252 L499 302 L489 302 L506 354 L487 356 L487 356 L495 272 L491 272 L501 194 L496 194 L509 117 L523 194 L518 194 L528 272 L524 272 L531 356 L525 357 L525 357 L540 275 L532 275 L550 197 L542 197 L566 122 L591 197 L582 197 L600 275 L592 275 L607 357 L574 358 L574 358 L587 274 L580 274 L595 195 L588 195 L609 119 L629 195 L623 195 L638 274 L631 274 L643 358 L632 360 L632 360 L645 274 L638 274 L654 193 L646 193 L668 114 L690 193 L683 193 L699 274 L692 274 L705 360 L690 360 L690 360 L699 313 L694 313 L706 269 L700 269 L717 226 L733 269 L727 269 L739 313 L734 313 L744 360 L722 358 L722 358 L730 275 L726 275 L736 196 L731 196 L745 120 L760 196 L755 196 L765 275 L761 275 L769 358 L757 360 L757 360 L771 283 L763 283 L780 211 L772 211 L795 141 L818 211 L810 211 L827 283 L819 283 L833 360 L812 354 L812 354 L827 274 L818 274 L837 199 L829 199 L854 127 L880 199 L871 199 L890 274 L881 274 L897 354 L873 354 L873 354 L887 306 L880 306 L897 260 L889 260 L912 216 L935 260 L928 260 L945 306 L937 306 L951 354 L936 351 L936 351 L944 294 L940 294 L950 239 L945 239 L959 187 L972 239 L968 239 L978 294 L973 294 L982 351 L973 348 L973 348 L987 258 L979 258 L997 173 L989 173 L1014 91 L1038 173 L1030 173 L1048 258 L1040 258 L1055 348 L1032 346 L1032 346 L1044 270 L1037 270 L1052 198 L1045 198 L1066 128 L1086 198 L1079 198 L1094 270 L1087 270 L1100 346 L1087 348 L1087 348 L1101 299 L1093 299 L1110 253 L1103 253 L1126 208 L1149 253 L1141 253 L1158 299 L1150 299 L1164 348 L1133 345 L1133 345 L1148 286 L1140 286 L1158 230 L1150 230 L1174 175 L1199 230 L1191 230 L1209 286 L1201 286 L1215 345 L1195 339 L1195 339 L1203 281 L1198 281 L1208 227 L1204 227 L1217 174 L1231 227 L1226 227 L1236 281 L1232 281 L1240 339 L1230 341 L1230 341 L1244 283 L1236 283 L1253 227 L1246 227 L1269 173 L1293 227 L1285 227 L1302 283 L1294 283 L1308 341 L1287 341 L1287 341 L1299 290 L1293 290 L1307 242 L1301 242 L1321 195 L1341 242 L1334 242 L1349 290 L1342 290 L1354 341 L1345 337 L1345 337 L1362 249 L1353 249 L1373 166 L1364 166 L1392 86 L1421 166 L1411 166 L1432 249 L1423 249 L1440 337 L1398 337 L1398 337 L1413 247 L1405 247 L1424 163 L1415 163 L1441 81 L1467 163 L1458 163 L1477 247 L1468 247 L1484 337 L1459 334 L1459 334 L1468 245 L1463 245 L1475 162 L1469 162 L1485 81 L1501 162 L1496 162 L1507 245 L1502 245 L1512 334 L1492 335 L1492 335 L1501 266 L1496 266 L1507 200 L1502 200 L1516 137 L1531 200 L1526 200 L1537 266 L1532 266 L1541 335 L1535 331 L1535 331 L1551 262 L1542 262 L1561 197 L1553 197 L1578 134 L1604 197 L1596 197 L1615 262 L1606 262 L1622 331 L1600 333 L1600 400 Z" fill="#040a06" opacity="1"/><rect x="0" y="300" width="1600" height="100" fill="url(#mist)"/></svg><div class="leaves"><i class="leaf" style="left:23.1%;--d:24.8s;--dl:-12.6s;--s:0.72;--lc:#3fae5e"><svg viewBox="0 0 24 24"><path d="M12 2C6 6 4 12 6 18c1 2 3 4 6 4 3 0 5-2 6-4 2-6 0-12-6-16Zm0 3v16" /></svg></i><i class="leaf" style="left:95.0%;--d:22.2s;--dl:-10.5s;--s:1.21;--lc:#d9ef6b"><svg viewBox="0 0 24 24"><path d="M12 2C6 6 4 12 6 18c1 2 3 4 6 4 3 0 5-2 6-4 2-6 0-12-6-16Zm0 3v16" /></svg></i><i class="leaf" style="left:34.4%;--d:17.8s;--dl:-21.8s;--s:0.70;--lc:#c9a43a"><svg viewBox="0 0 24 24"><path d="M12 2C6 6 4 12 6 18c1 2 3 4 6 4 3 0 5-2 6-4 2-6 0-12-6-16Zm0 3v16" /></svg></i><i class="leaf" style="left:83.9%;--d:15.4s;--dl:-24.1s;--s:1.20;--lc:#c9a43a"><svg viewBox="0 0 24 24"><path d="M12 2C6 6 4 12 6 18c1 2 3 4 6 4 3 0 5-2 6-4 2-6 0-12-6-16Zm0 3v16" /></svg></i><i class="leaf" style="left:25.3%;--d:14.8s;--dl:-10.1s;--s:1.31;--lc:#3fae5e"><svg viewBox="0 0 24 24"><path d="M12 2C6 6 4 12 6 18c1 2 3 4 6 4 3 0 5-2 6-4 2-6 0-12-6-16Zm0 3v16" /></svg></i><i class="leaf" style="left:36.1%;--d:19.1s;--dl:-7.2s;--s:0.73;--lc:#3fae5e"><svg viewBox="0 0 24 24"><path d="M12 2C6 6 4 12 6 18c1 2 3 4 6 4 3 0 5-2 6-4 2-6 0-12-6-16Zm0 3v16" /></svg></i><i class="leaf" style="left:5.2%;--d:21.9s;--dl:-16.5s;--s:0.80;--lc:#c9a43a"><svg viewBox="0 0 24 24"><path d="M12 2C6 6 4 12 6 18c1 2 3 4 6 4 3 0 5-2 6-4 2-6 0-12-6-16Zm0 3v16" /></svg></i><i class="leaf" style="left:43.6%;--d:17.8s;--dl:-20.1s;--s:1.25;--lc:#d9ef6b"><svg viewBox="0 0 24 24"><path d="M12 2C6 6 4 12 6 18c1 2 3 4 6 4 3 0 5-2 6-4 2-6 0-12-6-16Zm0 3v16" /></svg></i><i class="leaf" style="left:88.4%;--d:23.7s;--dl:-16.4s;--s:1.34;--lc:#2f8f4c"><svg viewBox="0 0 24 24"><path d="M12 2C6 6 4 12 6 18c1 2 3 4 6 4 3 0 5-2 6-4 2-6 0-12-6-16Zm0 3v16" /></svg></i><i class="leaf" style="left:54.9%;--d:22.6s;--dl:-1.3s;--s:1.21;--lc:#d9ef6b"><svg viewBox="0 0 24 24"><path d="M12 2C6 6 4 12 6 18c1 2 3 4 6 4 3 0 5-2 6-4 2-6 0-12-6-16Zm0 3v16" /></svg></i><i class="leaf" style="left:61.5%;--d:15.7s;--dl:-22.6s;--s:1.04;--lc:#2f8f4c"><svg viewBox="0 0 24 24"><path d="M12 2C6 6 4 12 6 18c1 2 3 4 6 4 3 0 5-2 6-4 2-6 0-12-6-16Zm0 3v16" /></svg></i></div></div>
-<div class="veil" id="veil" aria-hidden="true"></div>
-<button class="dropstar" id="dropStar" hidden aria-label="Звездопад! Поймай звезду"><svg viewBox="0 0 24 24"><path d="M12 1.5 14.6 9.4 22.5 12 14.6 14.6 12 22.5 9.4 14.6 1.5 12 9.4 9.4Z" fill="#e8ffb0"/></svg><span>Лови!</span></button>
-<div class="dropbanner" id="dropBanner" hidden></div>
-<button class="ufo" id="ufo" hidden aria-label="НЛО! Нажми, чтобы получить бонус">
-  <i class="beam"></i>
-  <svg viewBox="0 0 120 60" aria-hidden="true">
-    <defs>
-      <linearGradient id="uf1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef2f6"/><stop offset=".55" stop-color="#9aa4b4"/><stop offset="1" stop-color="#4d5566"/></linearGradient>
-      <radialGradient id="uf2" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#eafff3"/><stop offset=".5" stop-color="#7ff0b0" stop-opacity=".85"/><stop offset="1" stop-color="#2a9a68" stop-opacity=".7"/></radialGradient>
-    </defs>
-    <ellipse cx="60" cy="27" rx="22" ry="17" fill="url(#uf2)"/>
-    <ellipse cx="53" cy="20" rx="6" ry="4" fill="#fff" opacity=".6"/>
-    <ellipse cx="60" cy="37" rx="56" ry="13" fill="url(#uf1)"/>
-    <ellipse cx="60" cy="33" rx="44" ry="5" fill="#ffffff" opacity=".35"/>
-    <ellipse cx="60" cy="45" rx="26" ry="5" fill="#2e3442"/>
-    <g class="ul"><circle cx="18" cy="39" r="3"/><circle cx="34" cy="43" r="3"/><circle cx="52" cy="45" r="3"/><circle cx="68" cy="45" r="3"/><circle cx="86" cy="43" r="3"/><circle cx="102" cy="39" r="3"/></g>
-  </svg>
-</button>
+<div class="marq"><span>🐟 ДОБРО ПОЖАЛОВАТЬ НА ЛУЧШИЙ САЙТ О РЫБАЛКЕ В ИНТЕРНЕТЕ!!! 🎣 КЛЮЁТ КРУГЛОСУТОЧНО 🐠 БЕЗ РЕГИСТРАЦИИ И СМС 🦈 ЖЕНЕ СКАЖИ, ЧТО НА РАБОТЕ 🐡 ЩУКА ЖДЁТ 🎣 ВОТ ТАКУЮ ПОЙМАЛ, ЧЕСТНО 🐟</span></div>
 
-<header>
-  <nav>
-    <a href="#pack" data-tab="pack" aria-current="page">Пак</a>
-    <a href="#album" data-tab="album">Альбом</a>
-    <a href="#stream" data-tab="stream">Стрим</a>
-    <a href="#admin" data-tab="admin">Стример</a>
-  </nav>
-  <div class="wallet">
-    <span id="userbox" class="userbox"></span>
-    <span class="cat" title="Баллы канала"><i class="d"></i><b id="bal">0</b> баллов</span>
-    <span class="cat" title="Лесная пыльца за дубли"><i class="d t"></i><b id="dust">0</b> пыльцы</span>
-    <span class="cat watchchip" id="watchChip" hidden title="Пакетик за просмотр стрима"><i class="d w"></i><b id="watchTxt">0/30</b> мин</span>
-    <button class="cat" id="earn">+5 000 баллов</button>
-    <button class="cat" id="reset">Сбросить демо</button>
-    <button class="cat" id="snd" aria-pressed="true">Звук: вкл</button>
-  </div>
-</header>
+<h1>КЛЁВОЕ МЕСТО</h1>
+<p class="sub">★ <span class="blink">ОНЛАЙН-РЫБАЛКА</span> ★ не выходя из дома ★ и даже с дивана ★</p>
 
-<!-- ПАК -->
-<main class="home" id="tab-pack">
-  <section class="info" id="info" aria-live="polite"></section>
-  <div class="stagewrap" id="stage">
-    <div class="glow" id="glow" aria-hidden="true"></div>
-    <div class="rays" id="rays" aria-hidden="true"></div>
-    <div class="flash" id="flash" aria-hidden="true"></div>
-    <div class="shadow" aria-hidden="true"></div>
-  </div>
-  <div class="counter" id="pityTxt"></div>
-  <div class="pity"><i id="pityBar" style="width:0"></i></div>
-  <div class="notebox" id="notebox"><p class="note" id="note">Нажми «Открыть» — на стриме так же сработает награда за баллы канала.</p></div>
-  <div class="controls">
-    <button class="btn" id="toAlbum" aria-label="Открыть альбом" title="Альбом"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
-    <button class="pill" id="open">Открыть <span class="cost">5 000</span></button>
-    <button class="btn" id="toStream" aria-label="Оверлей стрима" title="Оверлей"><svg viewBox="0 0 24 24"><rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8M10 10.5l4 1.5-4 1.5z"/></svg></button>
-  </div>
-  <button class="pill sm inspect" id="inspect" hidden>Рассмотреть карточку</button>
-  <div class="odds" id="odds"></div>
-  <section class="recent" id="recent" hidden><h3>Выбито за эту сессию</h3><div class="rlist" id="rlist"></div></section>
-</main>
-
-<!-- АЛЬБОМ -->
-<main id="tab-album" hidden>
-  <div class="bar">
-    <div class="stats">
-      <span class="cat">Собрано <b id="sCol">0 / 20</b></span>
-      <span class="cat">Паков <b id="sPulls">0</b></span>
-      <span class="cat">Дублей <b id="sDup">0</b></span>
-    </div>
-    <div class="chips" id="filters"></div>
-  </div>
-  <div class="progress"><i id="colBar" style="width:0"></i></div>
-  <div id="album"></div>
-</main>
-
-<!-- СТРИМ -->
-<main id="tab-stream" hidden>
-  <div class="streamgrid" id="liveGrid" hidden style="margin-bottom:16px">
-    <section class="doc">
-      <div class="lw-head"><h2>Смотри стрим здесь</h2><span class="lw-state" id="lwState">офлайн</span></div>
-      <div class="chsw" id="chSwitch"></div>
-      <div class="player" id="playerBox"><div class="ph">Плеер появится здесь</div></div>
-      <div class="lw-prog"><div class="lw-txt" id="lwTxt">Войди на сайт: пока идёт стрим, за каждые 30 минут просмотра — бесплатный пакетик.</div><div class="lw-bar"><i id="lwBar"></i></div></div>
-    </section>
-    <section class="doc"><h2>Чат</h2><div class="chatbox" id="chatBox"></div></section>
-  </div>
-  <div class="streamgrid">
-    <section class="doc" id="demoScreen">
-      <h2>Так это видят на стриме</h2>
-      <p class="lh">Оверлей для OBS: добавляется как «Источник браузера»</p>
-      <p class="lh" id="obsLink" hidden></p>
-      <div class="screen">
-        <span class="live">LIVE</span>
-        <div class="game">идёт стрим…</div>
-        <div class="alert" id="alert"><div class="ap" id="alertPic"></div><div><div class="t1" id="alertT1"></div><div class="t2" id="alertT2"></div></div></div>
-      </div>
-      <label class="nick" for="nick">Твой ник в чате <input id="nick" value="zvezdochka_fan" maxlength="24"></label>
-    </section>
-    <section class="doc">
-      <h2>Лента выпадений</h2>
-      <p class="lh">Весь канал, в реальном времени</p>
-      <ul class="feed" id="feed"></ul>
-      <p class="note">Дубли превращаются в лесную пыльцу. Пыльца тратится на создание недостающей карточки прямо в альбоме.</p>
-    </section>
-  </div>
-</main>
-
-<!-- ПАНЕЛЬ СТРИМЕРА -->
-<main id="tab-admin" hidden>
-  <section class="doc lock" id="admLock">
-    <div class="lock-ico"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
-    <h2>Панель только для стримера</h2>
-    <p class="lh" id="admLockTxt"></p>
-    <button class="linkbtn" id="admKeyToggle" hidden>У меня есть ключ стримера</button>
-    <div class="keyrow" id="admKeyRow" hidden><input type="password" id="admKeyIn" placeholder="Ключ стримера" autocomplete="off"><button class="pill sm" id="admKeyGo">Войти по ключу</button></div>
-    <div class="claimbox" id="admClaim" hidden>
-      <h3>Первый запуск: придумай ключ стримера</h3>
-      <p class="lh">Это пароль от панели. Запиши его куда-нибудь — восстановить его нельзя. Минимум 16 символов.</p>
-      <div class="keyrow"><input type="text" id="clKey" placeholder="Например: лесной-пак-2026-моя-звезда" autocomplete="off"><button class="pill sm ghost" id="clGen">Придумай за меня</button></div>
-      <div class="keyrow"><button class="pill" id="clGo">Сохранить ключ и открыть панель</button></div>
-      <p class="lh small" id="clLeft"></p>
-    </div>
-    <button class="twbtn" data-login="streamer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3 3.5 7v12h4v2.5h2.5l2.5-2.5h3.5l5-5V3H5Zm14.5 10-3 3h-4L10 18.5V16H6.5V5h13v8Z" fill="currentColor"/><path d="M15 7.5h2v5h-2zM10.5 7.5h2v5h-2z" fill="currentColor"/></svg>Войти через Twitch</button>
-  </section>
-  <div id="admBody" hidden>
-  <div class="adm-head">
-    <div><h2 class="adm-title">Панель стримера</h2>
-    <p class="lh" id="admHeadTxt">Добавляй карточки, выставляй редкость и шансы. В демо всё хранится в этом браузере; в рабочей версии — на сервере, а вход только через Twitch-аккаунт канала.</p></div>
-  </div>
-  <div class="adm-grid">
-    <section class="doc" id="admForm">
-      <h2 id="admFormTitle">Новая карточка</h2>
-      <p class="lh">Картинка лучше всего вертикальная, 5 : 7</p>
-      <div class="adm-edit">
-        <div class="adm-prev"><div id="admPrev"></div></div>
-        <div class="adm-fields">
-          <label class="drop" id="admDrop"><input type="file" id="admFile" accept="image/*"><span id="admDropTxt">Перетащи картинку сюда или нажми, чтобы выбрать</span></label>
-          <div class="adm-pos" id="admPos" hidden>
-            <label>Кадр по горизонтали<input type="range" id="admX" min="0" max="100" value="50"></label>
-            <label>Кадр по вертикали<input type="range" id="admY" min="0" max="100" value="30"></label>
-          </div>
-          <label class="fld">Название<input id="admName" maxlength="28" placeholder="Например: Ночной стрим"></label>
-          <label class="fld">Описание<input id="admFlavor" maxlength="80" placeholder="Короткая подпись на карточке"></label>
-          <div class="fld"><span>Редкость</span><div class="rpick" id="admRar"></div></div>
-          <div class="adm-actions">
-            <button class="pill" id="admSave">Добавить в набор</button>
-            <button class="cat" id="admCancel" hidden>Отмена</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="doc">
-      <h2>Шансы и цена</h2>
-      <p class="lh">Вес редкости — её доля среди выпадений. Сумма может быть любой, проценты пересчитаются сами.</p>
-      <div class="odds-ed" id="admOdds"></div>
-      <div class="adm-row3">
-        <label class="fld">Шанс холо, %<input type="number" id="admFoil" min="0" max="100"></label>
-        <label class="fld">Гарантия эпической, паков<input type="number" id="admPity" min="2" max="100"></label>
-        <label class="fld">Цена пака, баллов<input type="number" id="admCost" min="1" step="100"></label>
-      </div>
-      <div class="adm-actions"><button class="pill" id="admOddsSave">Сохранить шансы</button><button class="cat" id="admResetSet">Вернуть стандартный набор</button></div>
-    </section>
+<div class="wrap">
+  <div class="pond" id="pond">
+    <div class="sun">🌞</div>
+    <div class="dude">🧍</div>
+    <div class="line" id="line"></div>
+    <div class="bob">📍</div>
+    <div class="swim" style="top:150px;animation-duration:9s">🐟</div>
+    <div class="swim r" style="top:185px;animation-duration:13s">🐠</div>
+    <div class="swim" style="top:215px;animation-duration:17s;animation-delay:-6s">🐡</div>
+    <div class="swim r" style="top:130px;animation-duration:21s;animation-delay:-9s;font-size:22px">🦐</div>
+    <div class="alarm">КЛЮЁТ!!!</div>
+    <div class="msg" id="msg">Жми большую кнопку и закидывай удочку, рыбак!</div>
   </div>
 
-  <section class="doc adm-live" id="admLive" hidden>
-    <h2>Twitch и сервер</h2>
-    <p class="lh" id="admLiveTxt"></p>
-    <div class="adm-actions"><button class="pill" id="admReward">Создать награду «Звёздный пак»</button><button class="cat" id="admUnbind" hidden>Отвязать награду</button></div>
-    <div class="obs-key" id="admObs" hidden></div>
-    <div class="adm-row3" style="margin-top:14px">
-      <label class="fld">Выдать пакетики зрителю (ник)<input id="admGrantLogin" placeholder="mur_mur"></label>
-      <label class="fld">Сколько<input type="number" id="admGrantN" value="1" min="1" max="100"></label>
-      <div class="fld"><span>&nbsp;</span><button class="cat" id="admGrant">Выдать</button></div>
-    </div>
-  </section>
+  <button id="go">🎣 ЗАБРОСИТЬ!</button>
+  <div class="hint">можно пробелом, если лень тянуться мышкой</div>
 
-  <section class="doc adm-live" id="admKeep" hidden>
-    <h2>Удержание зрителей</h2>
-    <p class="lh">Пока идёт стрим, зрители на сайте копят минуты просмотра и получают бесплатный пакетик. Сайт сам проверяет, что стрим в эфире. На вкладке «Стрим» у зрителей твой плеер и чат.</p>
-    <div class="adm-row3">
-      <label class="fld">Минут просмотра за пакетик<input type="number" id="kpMin" min="5" max="240" value="30"></label>
-      <label class="fld">Пакетиков за просмотр в сутки<input type="number" id="kpDaily" min="0" max="50" value="4"></label>
-      <div class="fld"><span>&nbsp;</span><button class="cat" id="kpSave">Сохранить</button></div>
-    </div>
-    <h3 style="margin:16px 0 6px">Звездопад</h3>
-    <p class="lh">Быстрый розыгрыш: у всех, кто сейчас на сайте, падает звезда. Кто успел поймать — получает пакетик. Скажи на стриме: «Звездопад! Бегом на сайт!»</p>
-    <div class="adm-row3">
-      <label class="fld"><span>Сколько длится</span><select id="dpSec"><option value="60">1 минута</option><option value="90" selected>1,5 минуты</option><option value="180">3 минуты</option><option value="300">5 минут</option></select></label>
-      <label class="fld"><span>Пакетиков за звезду</span><select id="dpPacks"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
-      <div class="fld"><span>&nbsp;</span><button class="pill" id="dpGo">Запустить звездопад</button></div>
-    </div>
-    <div class="follow-res" id="dpRes"></div>
-  </section>
-
-  <section class="doc adm-live" id="admFollow" hidden>
-    <h2>Только для фолловеров</h2>
-    <p class="lh">Если включить, открывать паки смогут только те, кто отслеживает канал. Проверку делает сервис <b>decapi.me</b>: ему нужно один раз разрешить смотреть список фолловеров.</p>
-    <ol class="lh" style="margin:0 0 10px 18px;padding:0">
-      <li>Нажми <a class="cat" href="https://decapi.me/auth/twitch?redirect=followed&amp;scopes=moderator:read:followers" target="_blank" rel="noopener">Получить токен на decapi.me</a>, войди аккаунтом канала и нажми «Authorize».</li>
-      <li>Скопируй токен со страницы и вставь сюда.</li>
-    </ol>
-    <div class="adm-row3">
-      <label class="fld">Токен decapi<input type="password" id="flToken" placeholder="вставь токен" autocomplete="off"></label>
-      <label class="fld"><span>Только фолловеры</span><select id="flOn"><option value="0">Выключено — открывают все</option><option value="1">Включено</option></select></label>
-      <div class="fld"><span>&nbsp;</span><button class="pill" id="flSave">Сохранить</button></div>
-    </div>
-    <div class="adm-row3" style="margin-top:10px">
-      <label class="fld">Проверить зрителя (ник)<input id="flTestLogin" placeholder="mur_mur"></label>
-      <div class="fld"><span>&nbsp;</span><button class="cat" id="flTest">Проверить</button></div>
-    </div>
-    <div class="follow-res" id="flRes"></div>
-  </section>
-
-  <section class="doc adm-list">
-    <div class="adm-list-head"><h2>Карточки набора</h2><span class="cat" id="admCount"></span></div>
-    <div class="adm-cards" id="admCards"></div>
-  </section>
+  <div class="card" id="card" aria-live="polite">
+    <div class="big" id="cEmoji"></div>
+    <h2 id="cName"></h2>
+    <p id="cInfo"></p>
+    <p id="cJoke"></p>
   </div>
-</main>
 
-<div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-label="Просмотр карточки">
-  <button class="btn" id="mclose" aria-label="Закрыть" title="Закрыть (Esc)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-  <div class="mbox">
-    <div class="vinfo" id="vinfo"></div>
-    <div class="viewer" id="viewer">
-      <div class="glow on" id="vglow" aria-hidden="true"></div>
-      <div class="v3d" id="v3d"><div id="vedge" style="position:absolute;inset:0;transform-style:preserve-3d"></div><div class="vface" id="vfront"></div><div class="vface rear" id="vrear"></div></div>
-    </div>
-    <div class="vcount" id="vcount"></div>
-    <div class="notebox"><p class="note" id="vnote"></p></div>
-    <div class="controls">
-      <button class="btn" id="vprev" aria-label="Предыдущая" title="Предыдущая (←)"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <button class="btn" id="vflip" aria-label="Перевернуть" title="Перевернуть (F)"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5"/></svg></button>
-      <button class="btn" id="vzoom" aria-label="Увеличить" aria-pressed="false" title="Увеличить (Z)"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4M11 8v6M8 11h6"/></svg></button>
-      <button class="btn" id="vnext" aria-label="Следующая" title="Следующая (→)"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
-    </div>
-    <div class="hint">Тяни карточку, чтобы повернуть · двойной клик переворачивает</div>
+  <div class="stats">
+    <div class="stat"><small>ПОЙМАНО</small><b id="sCount">0</b></div>
+    <div class="stat"><small>ОБЩИЙ ВЕС</small><b id="sWeight">0 кг</b></div>
+    <div class="stat"><small>РЕКОРД</small><b id="sBest">—</b></div>
+    <div class="stat"><small>СОРВАЛОСЬ</small><b id="sMiss">0</b></div>
   </div>
+
+  <h3>🪣 САДОК 🪣</h3>
+  <div id="bag"><em>пока пусто. как и в холодильнике.</em></div>
+  <button id="reset">выпустить всех обратно в речку</button>
+
+  <footer>
+    <div class="construction"><i>🚧 САЙТ В РАЗРАБОТКЕ С 2003 ГОДА 🚧</i></div>
+    <p>Вы посетитель № <span class="c" id="cnt">0000042</span></p>
+    <p>Ни одна рыба не пострадала. Сапог — пострадал.</p>
+  </footer>
 </div>
-<div class="modal" id="loginModal" hidden role="dialog" aria-modal="true" aria-labelledby="lgTitle">
-  <div class="doc lbox">
-    <button class="btn lclose" id="lgClose" aria-label="Закрыть"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-    <div class="lg-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3 3.5 7v12h4v2.5h2.5l2.5-2.5h3.5l5-5V3H5Zm14.5 10-3 3h-4L10 18.5V16H6.5V5h13v8Z" fill="currentColor"/><path d="M15 7.5h2v5h-2zM10.5 7.5h2v5h-2z" fill="currentColor"/></svg></div>
-    <h2 id="lgTitle">Вход через Twitch</h2>
-    <p class="lh" id="lgTxt"></p>
-    <div id="lgReal" hidden><button class="twbtn big" id="lgGo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3 3.5 7v12h4v2.5h2.5l2.5-2.5h3.5l5-5V3H5Zm14.5 10-3 3h-4L10 18.5V16H6.5V5h13v8Z" fill="currentColor"/><path d="M15 7.5h2v5h-2zM10.5 7.5h2v5h-2z" fill="currentColor"/></svg>Продолжить в Twitch</button></div>
-    <div id="lgChat" hidden>
-      <div id="lgChatStart">
-        <label class="fld">Твой ник на Twitch<input id="lgChatNick" maxlength="25" placeholder="например, zvezdochka_fan" autocomplete="off"></label>
-        <div class="adm-actions"><button class="twbtn" id="lgChatGo">Получить код</button></div>
-      </div>
-      <div id="lgChatCode" hidden>
-        <p class="lh" id="lgChatHow"></p>
-        <div class="lg-code" id="lgChatCmd"></div>
-        <div class="adm-actions"><button class="cat" id="lgChatCopy">Скопировать</button><a class="cat" id="lgChatOpen" target="_blank" rel="noopener">Открыть чат</a><button class="cat" id="lgChatBack">Другой ник</button></div>
-        <div class="demo-note" id="lgChatState">Жду сообщение в чате…</div>
-      </div>
-    </div>
-    <div id="lgDemo" hidden>
-      <div class="demo-note">Демо-вход: настоящий вход через Twitch включится, когда сайт будет на Nekoweb и в настройках будет указан Client ID приложения.</div>
-      <label class="fld">Твой ник на Twitch<input id="lgNick" maxlength="25" placeholder="например, zvezdochka_fan" autocomplete="off"></label>
-      <div class="adm-actions"><button class="twbtn" id="lgViewer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3 3.5 7v12h4v2.5h2.5l2.5-2.5h3.5l5-5V3H5Zm14.5 10-3 3h-4L10 18.5V16H6.5V5h13v8Z" fill="currentColor"/><path d="M15 7.5h2v5h-2zM10.5 7.5h2v5h-2z" fill="currentColor"/></svg>Войти как зритель</button><button class="cat" id="lgStreamer">Войти как стример канала</button></div>
-    </div>
-  </div>
-</div>
-<div class="toast" id="toast"></div>
-<script src="config.js?v=202611082121"></script>
-<script src="app.js?v=202611082121"></script>
+
+<script>
+// [эмодзи, название, мин.кг, макс.кг, шанс, шутка]
+const LOOT=[
+ ['🐟','Карась обыкновенный',0.1,1.2,22,'Классика. Кот одобряет.'],
+ ['🐠','Окунь полосатый',0.1,1.5,16,'Колючий, как твой начальник в понедельник.'],
+ ['🐡','Ёрш сопливый',0.05,0.3,12,'Мелкий, но гордый.'],
+ ['🐟','Плотва',0.1,0.9,14,'Пойдёт под пиво.'],
+ ['🦈','ЩУКА!!!',1.5,14,7,'По щучьему велению — проси что хочешь!'],
+ ['🐋','Сом-великан',8,90,2,'Он сам тебя чуть не поймал.'],
+ ['🥾','Сапог резиновый',0.8,1.6,8,'Левый. Правый ищи дальше.'],
+ ['🧦','Носок одинокий',0.05,0.1,6,'Так вот куда они деваются из стиралки!'],
+ ['🛞','Покрышка от «Жигулей»',6,9,4,'Зимняя! Повезло.'],
+ ['🥫','Банка тушёнки',0.3,0.5,5,'Обед сам приплыл.'],
+ ['🦆','Утка возмущённая',1,2,3,'Она очень недовольна. Извинись.'],
+ ['🧜‍♀️','Русалка',45,60,1,'Просит отпустить и не рассказывать жене.'],
+ ['👑','ЗОЛОТАЯ РЫБКА',0.2,0.4,1,'Три желания! Первое — новое корыто.'],
+ ['🦞','Рак',0.1,0.3,5,'Теперь ты знаешь, где он зимует.'],
+ ['📱','Чей-то телефон',0.2,0.25,2,'37 пропущенных от «Любимая».'],
+ ['🐊','Крокодил?!',40,200,1,'Откуда он в нашей речке — вопрос к администрации.']
+];
+const WAITS=['Сидим, ждём... 🤫','Тихо, не спугни!','Комары кусают, а рыба нет...','Поплавок вроде дёрнулся... показалось.','Наливай пока чай из термоса ☕','Терпение, рыбак, терпение...'];
+const EARLY=['РАНО! Спугнул всю рыбу, торопыга!','Куда дёргаешь?! Ещё не клюёт!','Рыба посмеялась и уплыла.'];
+const LATE=['Проспал! Рыба съела червя и сказала спасибо.','Сорвалась... Но она была ВО-О-ОТ ТАКАЯ!','Эх, раззява! Ушла.'];
+
+const $=id=>document.getElementById(id);
+const pond=$('pond'),go=$('go'),msg=$('msg'),line=$('line'),card=$('card');
+let state='idle',timer=null;
+let S={n:0,w:0,best:null,miss:0,bag:[]};
+try{const s=JSON.parse(localStorage.getItem('klev')||'null');if(s&&Array.isArray(s.bag))S=s}catch(e){}
+const save=()=>{try{localStorage.setItem('klev',JSON.stringify(S))}catch(e){}};
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const kg=x=>(x>=10?x.toFixed(0):x.toFixed(2)).replace('.',',')+' кг';
+
+function render(){
+  $('sCount').textContent=S.n;
+  $('sWeight').textContent=kg(S.w);
+  $('sBest').textContent=S.best?S.best.e+' '+kg(S.best.w):'—';
+  $('sMiss').textContent=S.miss;
+  const bag=$('bag');bag.textContent='';
+  if(!S.bag.length){const em=document.createElement('em');em.textContent='пока пусто. как и в холодильнике.';bag.appendChild(em)}
+  S.bag.slice(-80).forEach(b=>{const s=document.createElement('span');s.textContent=b.e;s.title=b.n+', '+kg(b.w);bag.appendChild(s)});
+}
+function set(st,text,btn){
+  state=st;pond.className='pond'+(st==='wait'?' wait':st==='bite'?' bite':'');
+  line.style.height=(st==='wait'||st==='bite')?'60px':'0';
+  line.style.transform=(st==='wait'||st==='bite')?'rotate(-72deg) scaleY(4.6)':'none';
+  msg.textContent=text;go.textContent=btn;go.classList.toggle('hot',st==='bite');
+}
+function cast(){
+  card.classList.remove('show');
+  set('wait',pick(WAITS),'⏳ ЖДЁМ...');
+  timer=setTimeout(()=>{
+    set('bite','ТЯНИ!!! ТЯНИ ДАВАЙ!!!','💥 ПОДСЕКАЙ!!!');
+    timer=setTimeout(()=>fail(pick(LATE)),1100);
+  },1200+Math.random()*3000);
+}
+function fail(t){clearTimeout(timer);S.miss++;save();render();set('idle',t,'🎣 ЕЩЁ РАЗОК!')}
+function hook(){
+  clearTimeout(timer);
+  let r=Math.random()*LOOT.reduce((a,l)=>a+l[4],0),l=LOOT[0];
+  for(const x of LOOT){if((r-=x[4])<=0){l=x;break}}
+  const w=l[2]+Math.random()*(l[3]-l[2]);
+  S.n++;S.w+=w;S.bag.push({e:l[0],n:l[1],w});
+  const rec=!S.best||w>S.best.w;if(rec)S.best={e:l[0],n:l[1],w};
+  save();render();
+  $('cEmoji').textContent=l[0];$('cName').textContent=l[1];
+  $('cInfo').innerHTML='Вес: <b>'+kg(w)+'</b>'+(l[4]<=3?' · <span class="rare">★ РЕДКОСТЬ ★</span>':'')+(rec?' · <span class="rare">НОВЫЙ РЕКОРД!</span>':'');
+  $('cJoke').textContent=l[5];
+  card.classList.remove('show');void card.offsetWidth;card.classList.add('show');
+  set('idle','ЕСТЬ! Вытащил: '+l[1]+'!','🎣 ЗАБРОСИТЬ ЕЩЁ!');
+}
+function press(){
+  if(state==='idle')cast();
+  else if(state==='wait')fail(pick(EARLY));
+  else if(state==='bite')hook();
+}
+go.addEventListener('click',press);
+document.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target===document.body){e.preventDefault();press()}});
+$('reset').addEventListener('click',()=>{S={n:0,w:0,best:null,miss:0,bag:[]};save();render();card.classList.remove('show');set('idle','Все отпущены. Рыба передаёт привет.','🎣 ЗАБРОСИТЬ!')});
+$('cnt').textContent=String(1337+Math.floor(Math.random()*8000)).padStart(7,'0');
+render();
+</script>
 </body>
 </html>

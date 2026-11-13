@@ -1,9 +1,0 @@
-# Функции проверяют Twitch-токен сами, JWT Supabase не нужен.
-[functions.api]
-verify_jwt = false
-
-[functions.eventsub]
-verify_jwt = false
-
-[functions.bridge]
-verify_jwt = false
