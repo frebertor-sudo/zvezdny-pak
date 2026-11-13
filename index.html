@@ -15,7 +15,7 @@ body{
   min-height:100vh;padding-bottom:40px;
 }
 .marq{background:#ff00aa;color:#fff;font-weight:bold;white-space:nowrap;overflow:hidden;border-bottom:4px dashed #fff700;padding:6px 0;font-size:18px}
-.marq span{display:inline-block;padding-left:100%;animation:run 16s linear infinite}
+.marq span{display:inline-block;padding-left:100%;animation:run 22s linear infinite}
 @keyframes run{to{transform:translateX(-100%)}}
 h1{
   font-family:"Rubik Wet Paint","Rubik Bubbles",cursive;font-weight:400;
@@ -31,30 +31,57 @@ h1{
 .blink{animation:blink .7s steps(2) infinite}
 @keyframes blink{50%{opacity:0}}
 .wrap{max-width:760px;margin:0 auto;padding:0 12px}
+
+.baits{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:0 0 12px}
+.baits b{width:100%;color:#fff;font-size:15px}
+.bait{background:#000;color:#fff;border:3px solid #00e5ff;border-radius:999px;padding:6px 12px;font-size:15px}
+.bait.on{background:#fff700;color:#000;border-color:#ff00aa;transform:rotate(-3deg) scale(1.08)}
+
 .pond{
-  position:relative;height:300px;border:8px ridge #fff700;border-radius:24px;overflow:hidden;
+  position:relative;height:330px;border:8px ridge #fff700;border-radius:24px;overflow:hidden;
   background:linear-gradient(#7ee8ff 0 38%,#00a2ff 38% 40%,#0066dd 40%,#002a80);
   box-shadow:0 0 0 6px #ff00aa,0 0 40px #00e5ff;
+  cursor:crosshair;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
 }
-.sun{position:absolute;top:10px;right:18px;font-size:54px;animation:spin 6s linear infinite}
+.pond.night{background:linear-gradient(#0b0033 0 38%,#3a1a8a 38% 40%,#1a0a55 40%,#05001a)}
+.pond.night .swim{filter:drop-shadow(0 0 8px #00ff3c)}
+.sun{position:absolute;top:8px;right:16px;font-size:54px;animation:spin 6s linear infinite;cursor:pointer}
 @keyframes spin{to{transform:rotate(360deg)}}
-.dude{position:absolute;left:8px;top:42px;font-size:64px;transform:scaleX(-1)}
-.line{position:absolute;left:70px;top:70px;width:3px;background:#fff;transform-origin:top;height:0;transition:height .5s}
-.bob{position:absolute;left:50%;top:104px;font-size:38px;transform:translateX(-50%);opacity:0;transition:opacity .3s}
-.pond.wait .bob{opacity:1;animation:bob 1.4s ease-in-out infinite}
-.pond.bite .bob{opacity:1;animation:yank .15s linear infinite}
-@keyframes bob{50%{transform:translate(-50%,8px) rotate(8deg)}}
-@keyframes yank{50%{transform:translate(-50%,26px) rotate(-25deg)}}
-.swim{position:absolute;font-size:34px;animation:swim linear infinite}
+.dude{position:absolute;left:8px;top:46px;font-size:64px;transform:scaleX(-1);cursor:pointer}
+.pond.fight .dude{animation:strain .2s linear infinite}
+@keyframes strain{50%{transform:scaleX(-1) rotate(12deg)}}
+svg.rig{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.bob{position:absolute;font-size:36px;margin:-22px 0 0 -18px;display:none;pointer-events:none}
+.pond.wait .bob,.pond.bite .bob,.pond.fight .bob{display:block}
+.pond.wait .bob{animation:bob 1.4s ease-in-out infinite}
+.pond.bite .bob{animation:yank .15s linear infinite}
+.pond.fight .bob{animation:yank .25s linear infinite}
+@keyframes bob{50%{transform:translateY(8px) rotate(8deg)}}
+@keyframes yank{50%{transform:translateY(20px) rotate(-25deg)}}
+.swim{position:absolute;font-size:34px;animation:swim linear infinite;cursor:pointer}
 @keyframes swim{from{left:105%}to{left:-15%}}
-.swim.r{transform:scaleX(-1);animation-name:swimr}
+.swim.r{animation-name:swimr}
+.swim.r i{transform:scaleX(-1)}
+.swim i{display:inline-block;font-style:normal}
 @keyframes swimr{from{left:-15%}to{left:105%}}
+.swim.scared{animation-duration:1.2s!important}
+.ufo{position:absolute;top:6px;left:-80px;font-size:60px;pointer-events:none;display:none}
+.ufo.fly{display:block;animation:ufo 2.6s ease-in-out}
+@keyframes ufo{0%{left:-80px;top:6px}45%{left:45%;top:70px;transform:rotate(-12deg) scale(1.4)}55%{left:45%;top:70px;transform:rotate(12deg) scale(1.4)}100%{left:110%;top:-40px}}
+.hud{position:absolute;left:110px;right:86px;top:8px;display:none;gap:5px;flex-direction:column;pointer-events:none}
+.pond.fight .hud{display:flex}
+.bar{height:20px;background:#000;border:2px solid #fff;border-radius:8px;overflow:hidden;position:relative;font-size:12px;line-height:16px;color:#fff;font-weight:bold}
+.bar u{position:absolute;left:0;top:0;bottom:0;width:0;text-decoration:none}
+.bar span{position:relative;text-shadow:1px 1px 0 #000}
+#bT u{background:linear-gradient(90deg,#00ff3c,#fff700 60%,#ff0000)}
+#bP u{background:#00e5ff}
 .msg{
-  position:absolute;left:0;right:0;bottom:10px;margin:0 10px;padding:8px;
-  background:rgba(0,0,0,.6);border:3px dotted #00ff3c;border-radius:12px;
+  position:absolute;left:0;right:0;bottom:10px;margin:0 10px;padding:8px;pointer-events:none;
+  background:rgba(0,0,0,.65);border:3px dotted #00ff3c;border-radius:12px;
   font-size:clamp(15px,3.6vw,20px);color:#fff;min-height:46px
 }
 .pond.bite{animation:shake .12s linear infinite}
+.pond.danger{animation:shake .08s linear infinite;box-shadow:0 0 0 6px #ff0000,0 0 60px #ff0000}
 @keyframes shake{25%{transform:translate(-5px,3px)}75%{transform:translate(5px,-3px)}}
 .alarm{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
   font-family:"Rubik Bubbles",cursive;font-size:clamp(46px,13vw,100px);color:#ff0000;
@@ -63,18 +90,22 @@ h1{
 button{font-family:inherit;cursor:pointer}
 #go{
   margin:22px auto 6px;display:block;width:min(100%,460px);padding:18px 10px;
-  font-family:"Rubik Bubbles",cursive;font-size:clamp(26px,7vw,44px);color:#fff;
+  font-family:"Rubik Bubbles",cursive;font-size:clamp(24px,6.5vw,42px);color:#fff;
   background:linear-gradient(#ff5a00,#ff0055);border:6px outset #fff700;border-radius:999px;
   text-shadow:3px 3px 0 #000;box-shadow:0 8px 0 #7a0030;animation:pulse 1s ease-in-out infinite alternate;
+  touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
 }
 #go:active{transform:translateY(6px);box-shadow:0 2px 0 #7a0030}
 #go.hot{background:linear-gradient(#00ff3c,#00a030);animation:pulse .15s linear infinite alternate}
+#go.reel{background:linear-gradient(#00e5ff,#0055ff);animation:none}
 @keyframes pulse{to{transform:scale(1.05)}}
-.hint{font-size:14px;color:#fff;opacity:.85}
+.hint{font-size:14px;color:#fff;opacity:.9;max-width:520px;margin:0 auto}
 .stats{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:18px 0}
 .stat{background:#000;border:4px double #00e5ff;padding:8px 14px;border-radius:10px;min-width:130px}
-.stat b{display:block;font-size:26px;color:#00ff3c;font-variant-numeric:tabular-nums}
+.stat b{display:block;font-size:24px;color:#00ff3c;font-variant-numeric:tabular-nums}
 .stat small{color:#ff9bf0}
+.stat.wide{width:100%}
+.stat.wide b{font-size:20px;color:#fff700}
 .card{
   margin:16px auto;padding:14px;border-radius:18px;border:6px groove #ff00aa;
   background:#fff700;color:#1a0044;transform:rotate(-1.5deg);display:none
@@ -84,6 +115,9 @@ button{font-family:inherit;cursor:pointer}
 .card .big{font-size:84px;line-height:1;display:inline-block;animation:wobble .5s ease-in-out infinite alternate}
 .card h2{font-family:"Rubik Bubbles",cursive;font-weight:400;font-size:clamp(24px,6vw,38px);margin:4px 0}
 .card p{margin:4px 0;font-size:17px}
+.ev{margin-top:10px;padding:10px;background:#1a0044;color:#fff;border-radius:12px;border:3px dashed #ff00aa}
+.ev button{margin:8px 4px 0;padding:8px 14px;font-size:16px;font-weight:bold;border:3px outset #fff;border-radius:10px;background:#00ff3c;color:#000}
+.ev button+button{background:#ff9bf0}
 .rare{color:#d4006a;font-weight:bold}
 h3{font-family:"Rubik Bubbles",cursive;font-weight:400;font-size:28px;color:#00e5ff;text-shadow:3px 3px 0 #000;margin:22px 0 8px}
 #bag{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;min-height:50px;
@@ -91,6 +125,20 @@ h3{font-family:"Rubik Bubbles",cursive;font-weight:400;font-size:28px;color:#00e
 #bag span{font-size:30px;cursor:default}
 #bag em{font-style:normal;color:#fff;opacity:.8;align-self:center}
 #reset{margin-top:10px;background:#000;color:#ff9bf0;border:2px solid #ff9bf0;border-radius:8px;padding:6px 12px;font-size:14px}
+.top{background:#000;border:6px ridge #fff700;border-radius:14px;padding:10px;color:#fff}
+.top form{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
+.top input{font:inherit;font-size:16px;padding:8px 10px;border:3px inset #00e5ff;border-radius:8px;background:#fff;color:#000;width:min(100%,230px)}
+.top form button{font-weight:bold;font-size:16px;padding:8px 14px;border:3px outset #fff;border-radius:8px;background:#00ff3c;color:#000}
+#topMsg{font-size:14px;color:#ff9bf0;min-height:20px;margin-bottom:6px}
+.top ol{list-style:none;margin:0;padding:0;text-align:left}
+.top li{display:flex;gap:8px;align-items:baseline;padding:6px 8px;border-bottom:1px dashed #444;font-size:16px}
+.top li:nth-child(1){color:#fff700;font-size:20px}
+.top li:nth-child(2){color:#e0e0e0}.top li:nth-child(3){color:#ffae6b}
+.top li .pl{width:34px;flex:none;text-align:center}
+.top li .nm{flex:1;min-width:0;overflow-wrap:anywhere;font-weight:bold}
+.top li .nm small{display:block;font-weight:normal;color:#9fd;opacity:.85;font-size:12px}
+.top li .kg{flex:none;color:#00ff3c;font-variant-numeric:tabular-nums;white-space:nowrap}
+.top li.me{background:#330044;outline:2px solid #ff00aa}
 footer{margin-top:28px;font-size:14px;color:#fff}
 footer .c{display:inline-block;background:#000;color:#00ff3c;font-family:monospace;padding:2px 8px;border:2px inset #888;letter-spacing:3px}
 .construction{display:inline-block;margin:10px;padding:6px 12px;font-weight:bold;color:#000;
@@ -100,36 +148,46 @@ footer .c{display:inline-block;background:#000;color:#00ff3c;font-family:monospa
 </style>
 </head>
 <body>
-<div class="marq"><span>🐟 ДОБРО ПОЖАЛОВАТЬ НА ЛУЧШИЙ САЙТ О РЫБАЛКЕ В ИНТЕРНЕТЕ!!! 🎣 КЛЮЁТ КРУГЛОСУТОЧНО 🐠 БЕЗ РЕГИСТРАЦИИ И СМС 🦈 ЖЕНЕ СКАЖИ, ЧТО НА РАБОТЕ 🐡 ЩУКА ЖДЁТ 🎣 ВОТ ТАКУЮ ПОЙМАЛ, ЧЕСТНО 🐟</span></div>
+<div class="marq"><span>🐟 ДОБРО ПОЖАЛОВАТЬ НА ЛУЧШИЙ САЙТ О РЫБАЛКЕ В ИНТЕРНЕТЕ!!! 🎣 КЛЮЁТ КРУГЛОСУТОЧНО 🐠 БЕЗ РЕГИСТРАЦИИ И СМС 🦈 ЖЕНЕ СКАЖИ, ЧТО НА РАБОТЕ 🛸 АДМИНИСТРАЦИЯ ЗА ПОХИЩЕНИЕ УЛОВА ПРИШЕЛЬЦАМИ ОТВЕТСТВЕННОСТИ НЕ НЕСЁТ 🐡 РЫБА ТОЖЕ ЧЕЛОВЕК 🧦 ВЕРНИТЕ НОСОК 🎣 ВОТ ТАКУЮ ПОЙМАЛ, ЧЕСТНО 🐟</span></div>
 
 <h1>КЛЁВОЕ МЕСТО</h1>
-<p class="sub">★ <span class="blink">ОНЛАЙН-РЫБАЛКА</span> ★ не выходя из дома ★ и даже с дивана ★</p>
+<p class="sub">★ <span class="blink">ОНЛАЙН-РЫБАЛКА</span> ★ теперь с физикой, мистикой и рыбнадзором ★</p>
 
 <div class="wrap">
+  <div class="baits" id="baits"><b>НАЖИВКА:</b></div>
+
   <div class="pond" id="pond">
-    <div class="sun">🌞</div>
-    <div class="dude">🧍</div>
-    <div class="line" id="line"></div>
-    <div class="bob">📍</div>
-    <div class="swim" style="top:150px;animation-duration:9s">🐟</div>
-    <div class="swim r" style="top:185px;animation-duration:13s">🐠</div>
-    <div class="swim" style="top:215px;animation-duration:17s;animation-delay:-6s">🐡</div>
-    <div class="swim r" style="top:130px;animation-duration:21s;animation-delay:-9s;font-size:22px">🦐</div>
+    <div class="sun" id="sun" data-poke="sun">🌞</div>
+    <div class="dude" data-poke="dude">🧍</div>
+    <svg class="rig"><line id="ln" stroke="#fff" stroke-width="2" x1="0" y1="0" x2="0" y2="0"/></svg>
+    <div class="swim" data-poke="fish" style="top:160px;animation-duration:9s"><i>🐟</i></div>
+    <div class="swim r" data-poke="fish" style="top:200px;animation-duration:13s"><i>🐠</i></div>
+    <div class="swim" data-poke="fish" style="top:235px;animation-duration:17s;animation-delay:-6s"><i>🐡</i></div>
+    <div class="swim r" data-poke="fish" style="top:140px;animation-duration:21s;animation-delay:-9s;font-size:22px"><i>🦐</i></div>
+    <div class="swim" data-poke="fish" style="top:185px;animation-duration:38s;animation-delay:-20s;font-size:26px"><i>🧦</i></div>
+    <div class="bob" id="bob">📍</div>
+    <div class="ufo" id="ufo">🛸</div>
+    <div class="hud">
+      <div class="bar" id="bT"><u></u><span>НАТЯЖЕНИЕ ЛЕСКИ</span></div>
+      <div class="bar" id="bP"><u></u><span>ВЫТЯНУЛ</span></div>
+    </div>
     <div class="alarm">КЛЮЁТ!!!</div>
-    <div class="msg" id="msg">Жми большую кнопку и закидывай удочку, рыбак!</div>
+    <div class="msg" id="msg">Тыкни в воду — туда и полетит поплавок!</div>
   </div>
 
   <button id="go">🎣 ЗАБРОСИТЬ!</button>
-  <div class="hint">можно пробелом, если лень тянуться мышкой</div>
+  <div class="hint">Тыкай в воду, чтобы закинуть. Клюёт — жми! Потом ДЕРЖИ, чтобы тянуть, и отпускай, когда леска трещит. Пробел тоже работает. Солнце, рыбака и рыб можно трогать.</div>
 
   <div class="card" id="card" aria-live="polite">
     <div class="big" id="cEmoji"></div>
     <h2 id="cName"></h2>
     <p id="cInfo"></p>
     <p id="cJoke"></p>
+    <div class="ev" id="ev" hidden></div>
   </div>
 
   <div class="stats">
+    <div class="stat wide"><small>ТВОЁ ЗВАНИЕ</small><b id="sRank"></b></div>
     <div class="stat"><small>ПОЙМАНО</small><b id="sCount">0</b></div>
     <div class="stat"><small>ОБЩИЙ ВЕС</small><b id="sWeight">0 кг</b></div>
     <div class="stat"><small>РЕКОРД</small><b id="sBest">—</b></div>
@@ -137,97 +195,285 @@ footer .c{display:inline-block;background:#000;color:#00ff3c;font-family:monospa
   </div>
 
   <h3>🪣 САДОК 🪣</h3>
-  <div id="bag"><em>пока пусто. как и в холодильнике.</em></div>
+  <div id="bag"></div>
   <button id="reset">выпустить всех обратно в речку</button>
+
+  <h3>🏆 ТОП РЫБАКОВ 🏆</h3>
+  <div class="top">
+    <form id="topForm">
+      <input id="nick" maxlength="20" placeholder="Твоё рыбацкое имя" aria-label="Твоё рыбацкое имя" autocomplete="nickname">
+      <button type="submit">ЗАПИСАТЬСЯ В ТОП</button>
+    </form>
+    <div id="topMsg">Впиши имя — и твой улов увидят все.</div>
+    <ol id="topList"></ol>
+  </div>
 
   <footer>
     <div class="construction"><i>🚧 САЙТ В РАЗРАБОТКЕ С 2003 ГОДА 🚧</i></div>
     <p>Вы посетитель № <span class="c" id="cnt">0000042</span></p>
-    <p>Ни одна рыба не пострадала. Сапог — пострадал.</p>
+    <p>Ни одна рыба не пострадала. Сапог — пострадал. Пришельцы от комментариев отказались.</p>
   </footer>
 </div>
 
 <script>
-// [эмодзи, название, мин.кг, макс.кг, шанс, шутка]
+// [эмодзи, название, мин.кг, макс.кг, шанс, шутка, тип: f рыба / j хлам / w дичь]
 const LOOT=[
- ['🐟','Карась обыкновенный',0.1,1.2,22,'Классика. Кот одобряет.'],
- ['🐠','Окунь полосатый',0.1,1.5,16,'Колючий, как твой начальник в понедельник.'],
- ['🐡','Ёрш сопливый',0.05,0.3,12,'Мелкий, но гордый.'],
- ['🐟','Плотва',0.1,0.9,14,'Пойдёт под пиво.'],
- ['🦈','ЩУКА!!!',1.5,14,7,'По щучьему велению — проси что хочешь!'],
- ['🐋','Сом-великан',8,90,2,'Он сам тебя чуть не поймал.'],
- ['🥾','Сапог резиновый',0.8,1.6,8,'Левый. Правый ищи дальше.'],
- ['🧦','Носок одинокий',0.05,0.1,6,'Так вот куда они деваются из стиралки!'],
- ['🛞','Покрышка от «Жигулей»',6,9,4,'Зимняя! Повезло.'],
- ['🥫','Банка тушёнки',0.3,0.5,5,'Обед сам приплыл.'],
- ['🦆','Утка возмущённая',1,2,3,'Она очень недовольна. Извинись.'],
- ['🧜‍♀️','Русалка',45,60,1,'Просит отпустить и не рассказывать жене.'],
- ['👑','ЗОЛОТАЯ РЫБКА',0.2,0.4,1,'Три желания! Первое — новое корыто.'],
- ['🦞','Рак',0.1,0.3,5,'Теперь ты знаешь, где он зимует.'],
- ['📱','Чей-то телефон',0.2,0.25,2,'37 пропущенных от «Любимая».'],
- ['🐊','Крокодил?!',40,200,1,'Откуда он в нашей речке — вопрос к администрации.']
+ ['🐟','Карась обыкновенный',0.1,1.2,20,'Классика. Кот одобряет.','f'],
+ ['🐠','Окунь полосатый',0.1,1.5,15,'Колючий, как твой начальник в понедельник.','f'],
+ ['🐡','Ёрш сопливый',0.05,0.3,10,'Мелкий, но гордый.','f'],
+ ['🐟','Плотва',0.1,0.9,12,'Пойдёт под пиво.','f'],
+ ['🦈','ЩУКА!!!',1.5,14,7,'По щучьему велению — проси что хочешь!','f'],
+ ['🐋','Сом-великан',8,90,2,'Он сам тебя чуть не поймал.','f'],
+ ['🦞','Рак',0.1,0.3,5,'Теперь ты знаешь, где он зимует.','f'],
+ ['🥾','Сапог резиновый',0.8,1.6,7,'Левый. Правый ищи дальше.','j'],
+ ['🧦','Носок одинокий',0.05,0.1,6,'Так вот куда они деваются из стиралки!','j'],
+ ['🛞','Покрышка от «Жигулей»',6,9,4,'Зимняя! Повезло.','j'],
+ ['🥫','Банка тушёнки',0.3,0.5,5,'Обед сам приплыл.','j'],
+ ['📱','Чей-то телефон',0.2,0.25,3,'37 пропущенных от «Любимая».','j'],
+ ['🧊','Холодильник «Полюс»',55,70,2,'Внутри кастрюля борща. Ещё тёплого. Вопросов больше, чем ответов.','j'],
+ ['🚽','Унитаз фаянсовый',20,28,2,'Трон речного царя. Теперь твой.','j'],
+ ['📡','Wi-Fi роутер',0.3,0.4,3,'Работает. Сеть «Rechka_5G», пароль «karas123».','j'],
+ ['🛒','Тележка из супермаркета',15,20,2,'С неё всё и началось.','j'],
+ ['🦆','Утка возмущённая',1,2,3,'Она очень недовольна. Извинись.','w'],
+ ['🧜‍♀️','Русалка',45,60,1.5,'Просит отпустить и не рассказывать жене.','w'],
+ ['👑','ЗОЛОТАЯ РЫБКА',0.2,0.4,1.5,'Три желания! Первое — новое корыто.','w'],
+ ['🐊','Крокодил?!',40,200,1,'Откуда он в нашей речке — вопрос к администрации.','w'],
+ ['👵','Бабушка с пирожками',60,75,1.5,'«Милок, а я тут с сорок восьмого года сижу. С капустой будешь?»','w'],
+ ['🤿','Водолаз Геннадий',80,95,1.5,'Очень просит больше так не делать. Третий раз за неделю.','w'],
+ ['🕳️','Чёрная дыра (маленькая)',0,999,0.7,'Вес не определён. Весы засосало.','w'],
+ ['🧍','Ты сам из параллельной вселенной',70,85,0.8,'Он тоже в шоке. Говорит, у них там клюёт лучше.','w'],
+ ['🚢','Подводная лодка',9000,18000,0.4,'Экипаж интересуется, какой сейчас год.','w'],
+ ['🦕','Чудище озёрное',300,900,0.5,'Просило не фотографировать. Все фото всё равно получатся размытыми.','w'],
+ ['💼','Депутатский портфель',3,5,1.2,'Внутри обещания. Все мокрые.','w'],
+ ['🗿','Каменная голова',500,800,0.6,'Смотрит осуждающе.','w']
 ];
-const WAITS=['Сидим, ждём... 🤫','Тихо, не спугни!','Комары кусают, а рыба нет...','Поплавок вроде дёрнулся... показалось.','Наливай пока чай из термоса ☕','Терпение, рыбак, терпение...'];
-const EARLY=['РАНО! Спугнул всю рыбу, торопыга!','Куда дёргаешь?! Ещё не клюёт!','Рыба посмеялась и уплыла.'];
-const LATE=['Проспал! Рыба съела червя и сказала спасибо.','Сорвалась... Но она была ВО-О-ОТ ТАКАЯ!','Эх, раззява! Ушла.'];
+const BAITS=[
+ ['🪱','Червяк',{f:2,j:1,w:.6},'Старый добрый червяк. Он знал, на что шёл.'],
+ ['🍞','Батон',{f:1.4,j:.8,w:1.6},'Батон. Утки уже в курсе.'],
+ ['🧦','Второй носок',{f:.3,j:3.5,w:1},'Подобное тянется к подобному.'],
+ ['🌯','Шаурма',{f:.7,j:.7,w:3},'На шаурму идёт всё. Вообще всё.'],
+ ['🪙','Биткоин',{f:.15,j:1,w:6},'Рыба не понимает, что это, но ей интересно.']
+];
+const WAITS=['Сидим, ждём... 🤫','Тихо, не спугни!','Комары кусают, а рыба нет...','Поплавок вроде дёрнулся... показалось.','Наливай пока чай из термоса ☕','Рыба совещается.','Из-под воды слышен смех.','Мимо проплыла мысль. Не клюнула.'];
+const EARLY=['РАНО! Спугнул всю рыбу, торопыга!','Куда дёргаешь?! Ещё не клюёт!','Рыба посмеялась и уплыла.','Рыба записала тебя в чёрный список.'];
+const LATE=['Проспал! Рыба съела наживку и оставила отзыв: 3 звезды.','Сорвалась... Но она была ВО-О-ОТ ТАКАЯ!','Эх, раззява! Ушла.','Рыба подсекла ТЕБЯ. Морально.'];
+const SNAP=['ЛЕСКА ЛОПНУЛА! Кто ж так тянет?!','ДЗЫНЬ! Леска улетела в стратосферу.','Перетянул! Оно уплыло вместе с крючком и твоей гордостью.'];
+const DUDE=['«Не толкайся, я рыбачу!»','«Вчера вот такую поймал!» — показывает руками 3 метра.','«Тс-с-с! Рыба всё слышит.»','«Жена думает, я в гараже.»','«Я не сплю, я медитирую на поплавок.»'];
+const POKE=['Руками нельзя! Это браконьерство!','Рыба обиделась и подала жалобу.','Не трогай, она на работе.','Рыба показала тебе плавник. Неприличный.'];
+const RANKS=[[0,'Диванный теоретик'],[3,'Гроза карасей'],[8,'Повелитель сапогов'],[15,'Щучий барин'],[25,'Заслуженный враль района'],[40,'Посейдон районного масштаба'],[70,'Бог рыбалки (самопровозглашённый)']];
 
 const $=id=>document.getElementById(id);
-const pond=$('pond'),go=$('go'),msg=$('msg'),line=$('line'),card=$('card');
-let state='idle',timer=null;
+const pond=$('pond'),go=$('go'),msg=$('msg'),card=$('card'),bob=$('bob'),ln=$('ln'),ev=$('ev');
+const ROD={x:92,y:62};
+let state='idle',timer=null,loop=null,hold=false,bx=300,by=150,sx=300,cur=null,tens=0,prog=0,bait=0,night=false;
 let S={n:0,w:0,best:null,miss:0,bag:[]};
 try{const s=JSON.parse(localStorage.getItem('klev')||'null');if(s&&Array.isArray(s.bag))S=s}catch(e){}
 const save=()=>{try{localStorage.setItem('klev',JSON.stringify(S))}catch(e){}};
 const pick=a=>a[Math.floor(Math.random()*a.length)];
-const kg=x=>(x>=10?x.toFixed(0):x.toFixed(2)).replace('.',',')+' кг';
+const kg=x=>x>=1000?(x/1000).toFixed(1).replace('.',',')+' т':(x>=10?x.toFixed(0):x.toFixed(2)).replace('.',',')+' кг';
+const say=t=>{msg.textContent=t};
+
+BAITS.forEach((b,i)=>{
+  const el=document.createElement('button');el.className='bait'+(i===0?' on':'');el.textContent=b[0]+' '+b[1];
+  el.addEventListener('click',()=>{
+    if(state!=='idle'){say('Наживку на ходу не меняют!');return}
+    bait=i;document.querySelectorAll('.bait').forEach((x,j)=>x.classList.toggle('on',j===i));say(b[3]);
+  });
+  $('baits').appendChild(el);
+});
 
 function render(){
   $('sCount').textContent=S.n;
   $('sWeight').textContent=kg(S.w);
   $('sBest').textContent=S.best?S.best.e+' '+kg(S.best.w):'—';
   $('sMiss').textContent=S.miss;
+  let r=RANKS[0][1];RANKS.forEach(x=>{if(S.n>=x[0])r=x[1]});$('sRank').textContent=r;
   const bag=$('bag');bag.textContent='';
   if(!S.bag.length){const em=document.createElement('em');em.textContent='пока пусто. как и в холодильнике.';bag.appendChild(em)}
-  S.bag.slice(-80).forEach(b=>{const s=document.createElement('span');s.textContent=b.e;s.title=b.n+', '+kg(b.w);bag.appendChild(s)});
+  S.bag.slice(-90).forEach(b=>{const s=document.createElement('span');s.textContent=b.e;s.title=b.n+(b.w?', '+kg(b.w):'');bag.appendChild(s)});
+}
+function rig(){
+  bob.style.left=bx+'px';bob.style.top=by+'px';
+  const on=state==='wait'||state==='bite'||state==='fight';
+  ln.setAttribute('x1',ROD.x);ln.setAttribute('y1',ROD.y);
+  ln.setAttribute('x2',on?bx:ROD.x);ln.setAttribute('y2',on?by-8:ROD.y);
 }
 function set(st,text,btn){
-  state=st;pond.className='pond'+(st==='wait'?' wait':st==='bite'?' bite':'');
-  line.style.height=(st==='wait'||st==='bite')?'60px':'0';
-  line.style.transform=(st==='wait'||st==='bite')?'rotate(-72deg) scaleY(4.6)':'none';
-  msg.textContent=text;go.textContent=btn;go.classList.toggle('hot',st==='bite');
+  state=st;
+  ['wait','bite','fight','danger'].forEach(c=>pond.classList.toggle(c,c===st));
+  if(text)say(text);go.textContent=btn;
+  go.classList.toggle('hot',st==='bite');go.classList.toggle('reel',st==='fight');
+  rig();
 }
-function cast(){
+function cast(x,y){
+  const r=pond.getBoundingClientRect(),w=r.width-16,h=r.height-16;
+  bx=sx=Math.max(130,Math.min(w-30,x==null?130+Math.random()*(w-170):x));
+  by=Math.max(h*0.44,Math.min(h-80,y==null?h*0.5+Math.random()*h*0.2:y));
   card.classList.remove('show');
   set('wait',pick(WAITS),'⏳ ЖДЁМ...');
   timer=setTimeout(()=>{
-    set('bite','ТЯНИ!!! ТЯНИ ДАВАЙ!!!','💥 ПОДСЕКАЙ!!!');
-    timer=setTimeout(()=>fail(pick(LATE)),1100);
+    set('bite','ЖМИ!!! ЖМИ ДАВАЙ!!!','💥 ПОДСЕКАЙ!!!');
+    timer=setTimeout(()=>fail(pick(LATE)),1200);
   },1200+Math.random()*3000);
 }
-function fail(t){clearTimeout(timer);S.miss++;save();render();set('idle',t,'🎣 ЕЩЁ РАЗОК!')}
+function fail(t){clearTimeout(timer);clearInterval(loop);hold=false;S.miss++;save();render();set('idle',t,'🎣 ЕЩЁ РАЗОК!')}
+function roll(){
+  const m=BAITS[bait][2];
+  const wt=l=>l[4]*m[l[6]]*(night&&l[6]==='w'?2.5:1);
+  let r=Math.random()*LOOT.reduce((a,l)=>a+wt(l),0),l=LOOT[0];
+  for(const x of LOOT){if((r-=wt(x))<=0){l=x;break}}
+  return {l,w:l[2]+Math.random()*(l[3]-l[2])};
+}
 function hook(){
   clearTimeout(timer);
-  let r=Math.random()*LOOT.reduce((a,l)=>a+l[4],0),l=LOOT[0];
-  for(const x of LOOT){if((r-=x[4])<=0){l=x;break}}
-  const w=l[2]+Math.random()*(l[3]-l[2]);
-  S.n++;S.w+=w;S.bag.push({e:l[0],n:l[1],w});
+  cur=roll();cur.str=Math.min(1.5,Math.log10(cur.w+1)*0.75);
+  tens=25;prog=12;hold=true;
+  set('fight','ЧТО-ТО ЕСТЬ! Держи, чтобы тянуть. Отпускай, когда трещит!','💪 ДЕРЖИ — ТЯНУ!');
+  loop=setInterval(tick,50);
+}
+function tick(){
+  const s=cur.str;
+  if(hold){prog+=1.5;tens+=1.8+1.2*s}else{tens-=3.5;prog-=0.3+0.3*s}
+  if(Math.random()<0.02+0.03*s){tens+=10+10*s;say(pick(['РЫВОК!!!','ОНО СОПРОТИВЛЯЕТСЯ!','УХ, ТЯЖЁЛОЕ!','ОНО ТЯНЕТ ТЕБЯ В ВОДУ!','Кажется, оно ругается!']))}
+  tens=Math.max(0,tens);prog=Math.max(0,prog);
+  $('bT').firstElementChild.style.width=Math.min(100,tens)+'%';
+  $('bP').firstElementChild.style.width=Math.min(100,prog)+'%';
+  pond.classList.toggle('danger',tens>75);
+  bx=sx+(ROD.x+40-sx)*Math.min(1,prog/100);rig();
+  if(tens>=100)return fail(pick(SNAP));
+  if(prog>=100)land();
+}
+function addBag(e,n,w){S.bag.push({e,n,w})}
+function land(){
+  clearInterval(loop);hold=false;
+  const l=cur.l,w=cur.w;
+  S.n++;S.w+=w;addBag(l[0],l[1],w);
   const rec=!S.best||w>S.best.w;if(rec)S.best={e:l[0],n:l[1],w};
   save();render();
   $('cEmoji').textContent=l[0];$('cName').textContent=l[1];
   $('cInfo').innerHTML='Вес: <b>'+kg(w)+'</b>'+(l[4]<=3?' · <span class="rare">★ РЕДКОСТЬ ★</span>':'')+(rec?' · <span class="rare">НОВЫЙ РЕКОРД!</span>':'');
   $('cJoke').textContent=l[5];
+  ev.hidden=true;ev.textContent='';
   card.classList.remove('show');void card.offsetWidth;card.classList.add('show');
   set('idle','ЕСТЬ! Вытащил: '+l[1]+'!','🎣 ЗАБРОСИТЬ ЕЩЁ!');
+  pushScore();
+  if(Math.random()<0.38)pick([evBribe,evUfo,evInspector,evReview])(l,w);
 }
-function press(){
-  if(state==='idle')cast();
+// ---- абсурдные происшествия ----
+function ask(text,opts){
+  state='choice';go.textContent='☝️ СНАЧАЛА РЕШИ ВОПРОС';
+  ev.hidden=false;ev.textContent='';
+  const p=document.createElement('div');p.textContent=text;ev.appendChild(p);
+  opts.forEach(o=>{const b=document.createElement('button');b.textContent=o[0];
+    b.addEventListener('click',()=>{ev.textContent=o[1]()||'';state='idle';go.textContent='🎣 ЗАБРОСИТЬ ЕЩЁ!';save();render()});
+    ev.appendChild(b)});
+}
+function dropLast(w){S.bag.pop();S.n--;S.w=Math.max(0,S.w-w)}
+function evBribe(l,w){
+  ask('💬 Улов говорит человеческим голосом: «Слышь, отпусти. Дам пятьсот рублей и никому не скажу, что ты ловишь на '+BAITS[bait][1].toLowerCase()+'».',[
+    ['Взять деньги',()=>{dropLast(w);addBag('💵','Взятка от улова',0);return 'Улов уплыл. Купюра мокрая, но настоящая. Наверное.'}],
+    ['В садок!',()=>'«Ну и зря», — сказал улов и замолчал. Навсегда. Теперь неловко.']
+  ]);
+}
+function evUfo(l,w){
+  const u=$('ufo');u.classList.remove('fly');void u.offsetWidth;u.classList.add('fly');
+  dropLast(w);addBag('📜','Расписка от пришельцев',0);save();render();
+  ev.hidden=false;ev.textContent='🛸 Прилетело НЛО и забрало твой улов «для опытов». Оставили расписку. Печать светится.';
+}
+function evInspector(l,w){
+  ask('👮 Из камышей выходит рыбнадзор: «Гражданин, ваши документы на '+l[1].toLowerCase()+'?»',[
+    ['Притвориться кустом',()=>Math.random()<0.5?'Сработало. Инспектор полил тебя и ушёл.':(dropLast(w),'«Кусты не носят панамку». Улов конфискован.')],
+    ['Показать улов',()=>Math.random()<0.5?(addBag('🏅','Грамота от рыбнадзора',0),'Инспектор прослезился и выдал грамоту «За вот такую».'):(dropLast(w),'Улов предъявил инспектору СВОИ документы. Они ушли вместе.')]
+  ]);
+}
+function evReview(l,w){
+  ev.hidden=false;
+  ev.textContent=pick([
+    '⭐ Улов оставил отзыв о рыбалке: «1 звезда. Наживка чёрствая, рыбак в панамке. Не рекомендую».',
+    '📞 Улову звонят. Он просит тебя подержать трубку.',
+    '🧾 К улову прилагался чек. Ты должен речке 340 рублей.',
+    '🎓 Улов оказался кандидатом наук. Теперь ты обязан обращаться к нему на «вы».'
+  ]);
+}
+// ---- топ игроков (общая таблица на сервере) ----
+const API='https://vmflvwvoymocyqrxtios.supabase.co/rest/v1/rpc/',KEY='sb_publishable_Bvccbadaqjt8tEtcenHXIw_kIVZlkpX';
+let me={id:'',name:''},pushT=null;
+try{me=JSON.parse(localStorage.getItem('klev_me')||'null')||me}catch(e){}
+if(!/^[0-9a-f-]{36}$/.test(me.id)){
+  me.id=(crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g,()=>(Math.random()*16|0).toString(16)));
+  try{localStorage.setItem('klev_me',JSON.stringify(me))}catch(e){}
+}
+$('nick').value=me.name||'';
+const rpc=(fn,body)=>fetch(API+fn,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(body||{})})
+  .then(r=>{if(!r.ok)throw new Error(r.status);return r.status===204?null:r.json()});
+function loadTop(){
+  rpc('fishing_top').then(rows=>{
+    const ol=$('topList');ol.textContent='';
+    if(!rows||!rows.length){const li=document.createElement('li');li.textContent='Пока никого. Будь первым — войди в историю!';ol.appendChild(li);return}
+    rows.forEach((r,i)=>{
+      const li=document.createElement('li');if(me.name&&r.name===me.name)li.className='me';
+      const a=document.createElement('span');a.className='pl';a.textContent=['🥇','🥈','🥉'][i]||(i+1)+'.';
+      const b=document.createElement('span');b.className='nm';b.textContent=r.name;
+      const sm=document.createElement('small');sm.textContent='поймано: '+r.catches+(r.best_name?' · рекорд: '+r.best_name+', '+kg(+r.best_kg):'');b.appendChild(sm);
+      const c=document.createElement('span');c.className='kg';c.textContent=kg(+r.total_kg);
+      li.append(a,b,c);ol.appendChild(li);
+    });
+  }).catch(()=>{$('topMsg').textContent='Топ не загрузился. Видимо, его съела щука. Попробуй обновить страницу.'});
+}
+function pushScore(now){
+  if(!me.name||!S.n)return;
+  clearTimeout(pushT);
+  pushT=setTimeout(()=>{
+    rpc('fishing_submit',{p_id:me.id,p_name:me.name,p_catches:S.n,p_total:+S.w.toFixed(2),p_best:S.best?+S.best.w.toFixed(2):0,p_best_name:S.best?S.best.e+' '+S.best.n:''})
+      .then(()=>{$('topMsg').textContent='Улов записан в топ под именем «'+me.name+'».';loadTop()})
+      .catch(()=>{$('topMsg').textContent='Не получилось отправить улов в топ. Попробуем после следующей рыбы.'});
+  },now?0:1500);
+}
+$('topForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const n=$('nick').value.replace(/[<>]/g,'').trim().slice(0,20);
+  if(!n){$('topMsg').textContent='Без имени в топ не пускают. Даже щуку.';return}
+  me.name=n;try{localStorage.setItem('klev_me',JSON.stringify(me))}catch(e){}
+  if(!S.n){$('topMsg').textContent='Имя запомнил. Теперь поймай хоть что-нибудь!';return}
+  $('topMsg').textContent='Отправляю...';pushScore(true);
+});
+loadTop();
+// ---- управление ----
+function down(x,y){
+  if(state==='idle')cast(x,y);
   else if(state==='wait')fail(pick(EARLY));
   else if(state==='bite')hook();
+  else if(state==='fight')hold=true;
+  else if(state==='choice')say('Сначала разберись с происшествием — кнопки в жёлтой карточке ниже!');
 }
-go.addEventListener('click',press);
-document.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target===document.body){e.preventDefault();press()}});
-$('reset').addEventListener('click',()=>{S={n:0,w:0,best:null,miss:0,bag:[]};save();render();card.classList.remove('show');set('idle','Все отпущены. Рыба передаёт привет.','🎣 ЗАБРОСИТЬ!')});
+function poke(el){
+  const k=el.dataset.poke;
+  if(k==='sun'){night=!night;pond.classList.toggle('night',night);$('sun').textContent=night?'🌝':'🌞';
+    say(night?'Ты выключил солнце. Ночью клюёт всякая дичь...':'Солнце обратно. Оно просит так больше не делать.')}
+  else if(k==='dude')say(pick(DUDE));
+  else{el.classList.add('scared');setTimeout(()=>el.classList.remove('scared'),1300);say(pick(POKE))}
+}
+pond.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  const t=e.target.closest('[data-poke]');
+  if(t&&state==='idle')return poke(t);
+  const r=pond.getBoundingClientRect();
+  down(e.clientX-r.left-8,e.clientY-r.top-8);
+});
+go.addEventListener('pointerdown',e=>{e.preventDefault();down()});
+go.addEventListener('keydown',e=>{if(e.code==='Enter'&&!e.repeat)down()});
+go.addEventListener('keyup',e=>{if(e.code==='Enter')hold=false});
+['pointerup','pointercancel','blur'].forEach(n=>window.addEventListener(n,()=>{hold=false}));
+pond.addEventListener('contextmenu',e=>e.preventDefault());
+go.addEventListener('contextmenu',e=>e.preventDefault());
+document.addEventListener('keydown',e=>{if(e.code==='Space'&&!e.target.closest('.bait,.ev,#reset,.top')){e.preventDefault();if(!e.repeat)down()}});
+document.addEventListener('keyup',e=>{if(e.code==='Space')hold=false});
+$('reset').addEventListener('click',()=>{
+  if(state!=='idle')return;
+  S={n:0,w:0,best:null,miss:0,bag:[]};save();render();card.classList.remove('show');
+  set('idle','Все отпущены. Рыба передаёт привет. Холодильник тоже уплыл.','🎣 ЗАБРОСИТЬ!')});
 $('cnt').textContent=String(1337+Math.floor(Math.random()*8000)).padStart(7,'0');
-render();
+render();rig();
 </script>
 </body>
 </html>
